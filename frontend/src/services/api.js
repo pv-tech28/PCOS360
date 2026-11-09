@@ -1,102 +1,182 @@
-// PCOS360 API Client - Integration-ready with Python FastAPI backend
+// PCOS360 API Service - Communicates with FastAPI backend on http://localhost:8000
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+async function request(endpoint, options = {}) {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...(options.headers || {}),
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      const error = new Error(errorBody.detail || `HTTP Error ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      error.detail = errorBody.detail;
+      throw error;
+    }
+
+    return await response.json();
+  } catch (err) {
+    // Return or rethrow with structured info
+    if (err.status) throw err;
+    const networkError = new Error(`Cannot connect to backend service at ${API_BASE_URL}`);
+    networkError.isNetworkError = true;
+    throw networkError;
+  }
+}
 
 export const apiClient = {
+  // Base Health
+  async checkHealth() {
+    try {
+      return await request('/api/health');
+    } catch {
+      return null;
+    }
+  },
+
   // Health Profile
-  async getProfile() {
+  async getProfile(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/profile`);
-      if (!res.ok) throw new Error('API request failed');
-      return await res.json();
-    } catch {
-      return null; // Fallback to frontend state
+      return await request(`/api/profile/${userId}`);
+    } catch (err) {
+      if (err.status === 404) return null;
+      throw err;
     }
   },
 
-  async updateProfile(profileData) {
+  async updateProfile(userId = 1, profileData) {
+    return await request(`/api/profile/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  },
+
+  async createProfile(profileData) {
+    return await request('/api/profile/', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  },
+
+  // Menstrual Cycles
+  async getCycles(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData)
-      });
-      return await res.json();
-    } catch {
-      return profileData;
+      return await request(`/api/cycles/${userId}`);
+    } catch (err) {
+      console.warn('Could not fetch cycles from backend:', err.message);
+      return [];
     }
   },
 
-  // Daily Tracker
-  async getDailyLogs() {
+  async createCycle(cycleData) {
+    return await request('/api/cycles/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: 1, ...cycleData }),
+    });
+  },
+
+  async deleteCycle(cycleId) {
+    return await request(`/api/cycles/${cycleId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Daily Symptoms
+  async getSymptoms(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/tracker/logs`);
-      return await res.json();
-    } catch {
-      return null;
+      return await request(`/api/symptoms/${userId}`);
+    } catch (err) {
+      console.warn('Could not fetch symptoms from backend:', err.message);
+      return [];
     }
   },
 
-  async createDailyLog(logData) {
+  async createSymptom(symptomData) {
+    return await request('/api/symptoms/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: 1, ...symptomData }),
+    });
+  },
+
+  async updateSymptom(symptomId, symptomData) {
+    return await request(`/api/symptoms/${symptomId}`, {
+      method: 'PUT',
+      body: JSON.stringify(symptomData),
+    });
+  },
+
+  async deleteSymptom(symptomId) {
+    return await request(`/api/symptoms/${symptomId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Lifestyle Logs
+  async getLifestyle(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/tracker/logs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(logData)
-      });
-      return await res.json();
-    } catch {
-      return logData;
+      return await request(`/api/lifestyle/${userId}`);
+    } catch (err) {
+      console.warn('Could not fetch lifestyle logs from backend:', err.message);
+      return [];
     }
   },
 
-  // Metabolic & Labs
-  async getLabReports() {
+  async createLifestyle(lifestyleData) {
+    return await request('/api/lifestyle/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: 1, ...lifestyleData }),
+    });
+  },
+
+  // Lab Reports
+  async getLabReports(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/labs`);
-      return await res.json();
-    } catch {
-      return null;
+      return await request(`/api/lab-reports/${userId}`);
+    } catch (err) {
+      console.warn('Could not fetch lab reports from backend:', err.message);
+      return [];
     }
   },
 
-  async uploadLabReport(formData) {
+  async createLabReport(reportData) {
+    return await request('/api/lab-reports/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: 1, ...reportData }),
+    });
+  },
+
+  async deleteLabReport(reportId) {
+    return await request(`/api/lab-reports/${reportId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Clinical Records
+  async getClinicalRecords(userId = 1) {
     try {
-      const res = await fetch(`${API_BASE_URL}/labs/upload`, {
-        method: 'POST',
-        body: formData
-      });
-      return await res.json();
-    } catch {
-      return null;
+      return await request(`/api/clinical-records/${userId}`);
+    } catch (err) {
+      console.warn('Could not fetch clinical records from backend:', err.message);
+      return [];
     }
   },
 
-  // What-If Simulator calculation
-  async simulateWhatIf(payload) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/simulator/evaluate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return await res.json();
-    } catch {
-      return null;
-    }
+  async createClinicalRecord(recordData) {
+    return await request('/api/clinical-records/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: 1, ...recordData }),
+    });
   },
-
-  // Consultation Copilot
-  async generateConsultationReport(params) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/copilot/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params)
-      });
-      return await res.json();
-    } catch {
-      return null;
-    }
-  }
 };

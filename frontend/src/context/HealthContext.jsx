@@ -9,8 +9,9 @@ import {
   initialHistoricalMetabolic,
   initialCareGaps,
   initialTimeline,
-  initialAIInsights
+  initialAIInsights,
 } from '../data/initialData';
+import { apiClient } from '../services/api';
 
 const HealthContext = createContext(null);
 
@@ -90,9 +91,14 @@ export function HealthProvider({ children }) {
     }
   });
 
+  // Database synchronization state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [syncNotice, setSyncNotice] = useState(null);
+
   // UI state
   const [activeScreen, setActiveScreen] = useState('overview');
-  const [viewMode, setViewMode] = useState('desktop'); // 'desktop' or 'mobile-preview'
+  const [viewMode, setViewMode] = useState('desktop');
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -105,7 +111,100 @@ export function HealthProvider({ children }) {
     { id: 'notif-3', title: 'Consultation packet ready', text: 'Summary generated with 4 doctor discussion questions.', unread: false, time: '3d ago', screen: 'consultation-copilot' }
   ]);
 
-  // Save to localStorage whenever state updates
+  // Initial fetch from FastAPI PostgreSQL backend
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncFromDatabase() {
+      setIsSyncing(true);
+      try {
+        // Check health & database connectivity
+        const health = await apiClient.checkHealth();
+        if (!isMounted) return;
+
+        if (health && health.status === 'healthy') {
+          setDbConnected(true);
+          setSyncNotice({ type: 'success', text: `Connected to ${health.database?.type || 'Database'}` });
+
+          // 1. Fetch Health Profile
+          const backendProfile = await apiClient.getProfile(1);
+          if (backendProfile && isMounted) {
+            setProfile(prev => ({
+              ...prev,
+              age: backendProfile.age || prev.age,
+              heightCm: backendProfile.height || prev.heightCm,
+              weightKg: backendProfile.weight || prev.weightKg,
+              pcosStatus: backendProfile.diagnosis_status || prev.pcosStatus,
+              diagnosisYear: backendProfile.diagnosis_year || prev.diagnosisYear,
+              medicalConditions: backendProfile.existing_conditions || prev.medicalConditions,
+              medications: backendProfile.medications || prev.medications,
+            }));
+          }
+
+          // 2. Fetch Menstrual Cycles
+          const backendCycles = await apiClient.getCycles(1);
+          if (backendCycles && backendCycles.length > 0 && isMounted) {
+            const formattedHistory = backendCycles.map(c => ({
+              cycle: new Date(c.period_start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              length: c.cycle_length,
+              flowDays: 6,
+              status: c.cycle_length <= 35 ? 'Regular' : 'Irregular',
+            }));
+            setCycleData(prev => ({
+              ...prev,
+              totalDays: backendCycles[0].cycle_length || prev.totalDays,
+              history: formattedHistory,
+            }));
+          }
+
+          // 3. Fetch Lab Reports
+          const backendLabs = await apiClient.getLabReports(1);
+          if (backendLabs && backendLabs.length > 0 && isMounted) {
+            // Group flat test records or merge
+            const formattedTests = backendLabs.map(l => ({
+              name: l.test_name,
+              value: l.test_value,
+              unit: l.unit,
+              normalRange: l.reference_range,
+              status: l.test_value > 150 || (l.test_name === 'HbA1c' && l.test_value >= 5.7) ? 'Borderline' : 'Normal',
+              interpretation: `Database record recorded on ${l.report_date}. Reference interval: ${l.reference_range} ${l.unit}.`,
+            }));
+
+            setLabReports(prev => [
+              {
+                id: 'rep-db-live',
+                filename: 'PostgreSQL_Synchronized_Panel.pdf',
+                labName: 'Verified Clinical Records',
+                date: backendLabs[0].report_date,
+                status: 'Analyzed',
+                verified: true,
+                tests: formattedTests,
+              },
+              ...prev.filter(r => r.id !== 'rep-db-live'),
+            ]);
+          }
+        } else {
+          setDbConnected(false);
+          setSyncNotice({ type: 'warning', text: 'Backend offline - Using local storage cache' });
+        }
+      } catch (err) {
+        console.warn('Backend database synchronization check:', err);
+        if (isMounted) {
+          setDbConnected(false);
+          setSyncNotice({ type: 'info', text: 'Running in Local Prototype Mode' });
+        }
+      } finally {
+        if (isMounted) setIsSyncing(false);
+      }
+    }
+
+    syncFromDatabase();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Save to localStorage whenever state updates as an offline safeguard
   useEffect(() => {
     try {
       localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(profile));
@@ -121,12 +220,30 @@ export function HealthProvider({ children }) {
     }
   }, [profile, cycleData, labReports, timeline, careGaps, symptomTrends, insights, recentActivities]);
 
-  // Actions
-  const updateProfile = (updates) => {
+  // Actions with Backend Database Persistence
+  const updateProfile = async (updates) => {
     setProfile(prev => ({ ...prev, ...updates }));
+
+    // Persist to backend database
+    try {
+      await apiClient.updateProfile(1, {
+        age: updates.age,
+        height: updates.heightCm,
+        weight: updates.weightKg,
+        diagnosis_status: updates.pcosStatus,
+        diagnosis_year: updates.diagnosisYear,
+        existing_conditions: updates.medicalConditions,
+        medications: updates.medications,
+      });
+      setSyncNotice({ type: 'success', text: 'Profile saved to PostgreSQL database' });
+    } catch (err) {
+      console.warn('Profile persisted to local state only:', err.message);
+    }
   };
 
-  const addDailyLog = (newLog) => {
+  const addDailyLog = async (newLog) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
     // Add to recent activity
     const activity = {
       id: Date.now(),
@@ -141,7 +258,7 @@ export function HealthProvider({ children }) {
     // Add to timeline
     const timelineEntry = {
       id: `t-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       category: 'symptom',
       title: `Daily Log - Cycle Day ${cycleData.currentDay}`,
       description: `Symptoms recorded: ${newLog.symptoms?.join(', ') || 'Mild/Normal'}. Sleep: ${newLog.sleepHours || 7} hrs. Energy: ${newLog.energyLevel || 'Moderate'}.`,
@@ -152,11 +269,37 @@ export function HealthProvider({ children }) {
 
     // Check if symptom logging gap was present and resolve it
     setCareGaps(prev => prev.filter(g => g.id !== 'gap-3'));
+
+    // Persist to backend database (Symptoms + Lifestyle)
+    try {
+      await apiClient.createSymptom({
+        log_date: todayStr,
+        acne_severity: newLog.symptoms?.includes('Acne Breakout') ? 'Moderate' : 'None',
+        fatigue_level: newLog.symptoms?.includes('Severe Fatigue') ? 8 : newLog.symptoms?.includes('Mild Fatigue') ? 4 : 2,
+        bloating: newLog.symptoms?.includes('Bloating / Water Retention') ? 5 : 1,
+        pelvic_pain: newLog.symptoms?.includes('Pelvic Cramping') ? 6 : 1,
+        mood: newLog.energyLevel || 'Moderate',
+        notes: newLog.notes || null,
+      });
+
+      await apiClient.createLifestyle({
+        log_date: todayStr,
+        sleep_hours: parseFloat(newLog.sleepHours) || 7.5,
+        stress_level: parseInt(newLog.stressLevel) || 2,
+        water_intake: parseFloat(newLog.waterGlasses) || 8.0,
+        exercise_minutes: 30,
+        food_habits: 'Balanced',
+        meal_regularity: 'Regular',
+      });
+      setSyncNotice({ type: 'success', text: 'Daily symptoms & lifestyle saved to PostgreSQL' });
+    } catch (err) {
+      console.warn('Daily log saved to local cache:', err.message);
+    }
   };
 
-  const addLabReport = (newReport) => {
+  const addLabReport = async (newReport) => {
     setLabReports(prev => [newReport, ...prev]);
-    // Add to timeline
+
     const timelineEntry = {
       id: `t-${Date.now()}`,
       date: newReport.date || new Date().toISOString().split('T')[0],
@@ -168,7 +311,6 @@ export function HealthProvider({ children }) {
     };
     setTimeline(prev => [timelineEntry, ...prev]);
 
-    // Add activity
     const activity = {
       id: Date.now(),
       type: 'lab',
@@ -179,8 +321,26 @@ export function HealthProvider({ children }) {
     };
     setRecentActivities(prev => [activity, ...prev.slice(0, 9)]);
 
-    // Update Care Gap if HbA1c/Metabolic was added
     setCareGaps(prev => prev.filter(g => g.id !== 'gap-1'));
+
+    // Persist extracted tests to backend database
+    if (newReport.tests && newReport.tests.length > 0) {
+      try {
+        for (const test of newReport.tests) {
+          await apiClient.createLabReport({
+            report_name: newReport.filename || 'Diagnostic Panel',
+            test_name: test.name,
+            test_value: parseFloat(test.value) || 0.0,
+            unit: test.unit || '',
+            reference_range: test.normalRange || '',
+            report_date: newReport.date || new Date().toISOString().split('T')[0],
+          });
+        }
+        setSyncNotice({ type: 'success', text: 'Biomarkers stored in PostgreSQL lab_reports table' });
+      } catch (err) {
+        console.warn('Lab report saved to local state:', err.message);
+      }
+    }
   };
 
   const addTimelineEvent = (event) => {
@@ -246,7 +406,10 @@ export function HealthProvider({ children }) {
       notifications,
       markNotificationRead,
       addDailyLog,
-      resetToDemo
+      resetToDemo,
+      isSyncing,
+      dbConnected,
+      syncNotice
     }}>
       {children}
     </HealthContext.Provider>

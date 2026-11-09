@@ -87,3 +87,4 @@ class TimelineEvent(Base):
     badge = Column(String(50))
     badge_color = Column(String(30), default="purple")
     created_at = Column(DateTime, default=datetime.utcnow)
+

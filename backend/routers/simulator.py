@@ -42,3 +42,4 @@ def evaluate_what_if(req: schemas.WhatIfRequest):
         projected_benefits=projected,
         disclaimer=disclaimer
     )
+

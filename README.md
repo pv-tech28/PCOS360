@@ -2,157 +2,202 @@
 
 > **Beyond Symptoms. Understand Your PCOS.**
 
-PCOS360 is a modern, responsive healthcare web application designed to help women understand and manage PCOS/PCOD through personalized health insights, multi-variable symptom correlation, metabolic health monitoring, explainable clinical intelligence, and doctor consultation preparation.
+PCOS360 is a modern, responsive healthcare web application designed to help women understand and manage PCOS/PCOD through personalized health insights, symptom tracking, metabolic monitoring, explainable clinical intelligence, and doctor consultation preparation.
 
 ---
 
-## 🌸 Design Philosophy & Aesthetic
+## 🏗️ Architecture & Technology Stack
 
-- **Primary**: Deep lavender purple (`#7950A8`)
-- **Secondary**: Soft lavender (`#EDE5F7` / `#F6F2FA`)
-- **Background**: Off-white (`#FAF9FC`)
-- **Cards**: Pure white (`#FFFFFF`)
-- **Accent**: Muted pink (`#E8B8D0`)
-- **Text**: Dark charcoal (`#292431`)
-- **Secondary text**: Grey (`#77717F`)
-- **Soft Shadows & Borders**: Subtle borders (`#EFEAF4`), gentle rounded corners (`rounded-2xl` & `rounded-3xl`).
-- **Ethical Guardrails**: Every intelligence module features clear, standardized clinical disclosures separating statistical association from medical conclusions, with strict avoidance of unsupported disease-risk claims.
+* **Frontend:** React 19, Vite, Tailwind CSS v4, Lucide React, Recharts (`http://localhost:5173`)
+* **Backend:** FastAPI, Python 3.13, Uvicorn, Pydantic v2 (`http://localhost:8000`)
+* **Database & ORM:** PostgreSQL (`pcos360_db`), SQLAlchemy 2.0, Psycopg 3 (`psycopg[binary]`), SQLite zero-config fallback
+* **Database Migrations:** Alembic
 
 ---
 
-## 🚀 Key Modules & Implemented Screens
+## 🗄️ PostgreSQL Database Architecture (`pcos360_db`)
 
-1. **Screen 1: Welcome & Authentication Modal**
-   - Brand logo with butterfly motif, tagline, email/password login and registration options.
-   - One-click **"Continue as Ananya (Demo User)"** button for instant access.
+The database is structured across seven relational tables with foreign keys (`users.id` cascade delete), indexes, and timezone-aware timestamps:
 
-2. **Screen 2: Multi-Step Health Profile Setup**
-   - Multi-step onboarding with progress indicator.
-   - Captures age, height, weight (calculates BMI), PCOS diagnosis status, diagnosis year, existing conditions, and medications.
+1. **`users`**
+   * `id` (PK, Integer, Auto-increment)
+   * `full_name` (VARCHAR 150)
+   * `email` (VARCHAR 255, Unique, Indexed)
+   * `password_hash` (VARCHAR 255, Nullable, reserved for future authentication)
+   * `created_at`, `updated_at` (TIMESTAMPTZ)
 
-3. **Screen 3: Clinical Dashboard (Overview)**
-   - Personalized greeting for Ananya Sharma.
-   - Cycle progress card (Day 18 of 35 • Luteal Phase) with visual progress bar and phase guide.
-   - Quick access to the 4 core intelligence modules.
-   - Latest AI insights with explainability triggers.
-   - Care Gap alert cards and recent health activity stream.
+2. **`health_profiles`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`, Unique 1-to-1)
+   * `age` (Integer), `height` (Float, cm), `weight` (Float, kg)
+   * `diagnosis_status` ("Diagnosed" / "Not Diagnosed" / "Unsure")
+   * `diagnosis_year` (Integer, Optional)
+   * `existing_conditions` (JSON List, Optional)
+   * `medications` (JSON List, Optional)
+   * `created_at`, `updated_at` (TIMESTAMPTZ)
 
-4. **Screen 4: PCOSCOPE – Personal Pattern Discovery**
-   - Multi-tab analysis: *Overview*, *Correlations*, and *Trends*.
-   - Key observed pattern insights (Sleep vs. Fatigue, Stress vs. Cycle delays, Inositol adherence).
-   - 6-month interactive symptom trend charts using Recharts.
-   - Pearson correlation coefficient matrix.
+3. **`menstrual_cycles`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`)
+   * `period_start_date` (DATE)
+   * `period_end_date` (DATE, Optional)
+   * `cycle_length` (Integer, days)
+   * `flow_intensity` (VARCHAR 50: Light / Medium / Heavy)
+   * `notes` (TEXT, Optional)
+   * `created_at` (TIMESTAMPTZ)
 
-5. **Screen 5: Metabolic Health – PCOS PREDICT**
-   - Fasting glucose, HbA1c (5.8% borderline), fasting insulin (14.2 μIU/mL), and lipid profile tracking.
-   - 15-month longitudinal trend line chart across verified lab draws.
-   - Interactive HOMA-IR (Homeostatic Model Assessment of Insulin Resistance) calculator.
-   - Results requiring medical discussion highlighted for doctor visits.
+4. **`daily_symptoms`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`)
+   * `log_date` (DATE, Indexed)
+   * `acne_severity`, `hair_loss`, `unwanted_hair_growth` (VARCHAR 50)
+   * `fatigue_level`, `bloating`, `pelvic_pain` (Integer 1-10)
+   * `mood` (VARCHAR 100), `notes` (TEXT)
+   * `created_at` (TIMESTAMPTZ)
 
-6. **Screen 6: Clinical Explorer – PCOS GENOME**
-   - Rotterdam diagnostic pillars (Ovulatory Dysfunction, Hyperandrogenism, Polycystic Ovarian Morphology).
-   - Available vs. missing clinical evidence indicator.
-   - Exploration of 4 consensus phenotypes:
-     - **Phenotype A** (Classic / Complete)
-     - **Phenotype B** (Classic Non-PCOM)
-     - **Phenotype C** (Ovulatory PCOS)
-     - **Phenotype D** (Normoandrogenic PCOS)
-   - Interactive Radar comparison chart comparing user data against phenotype patterns.
+5. **`lifestyle_logs`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`)
+   * `log_date` (DATE, Indexed)
+   * `sleep_hours` (Float), `stress_level` (Integer 1-5), `water_intake` (Float)
+   * `exercise_minutes` (Integer), `food_habits` (VARCHAR 150), `meal_regularity` (VARCHAR 50)
+   * `created_at` (TIMESTAMPTZ)
 
-7. **Screen 7: PCOS EXPLAIN – Explainable AI**
-   - Full transparency into why each insight was generated.
-   - Contributing factor weights and direction (+/-).
-   - Model confidence / uncertainty percentages.
-   - Missing data points required for full clinical certainty.
+6. **`lab_reports`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`)
+   * `report_name` (VARCHAR 255), `test_name` (VARCHAR 150), `test_value` (Float)
+   * `unit` (VARCHAR 50), `reference_range` (VARCHAR 100), `report_date` (DATE)
+   * `created_at` (TIMESTAMPTZ)
 
-8. **Screen 8: AI Lab Report Decoder**
-   - Drag-and-drop file upload for PDF, JPG, and PNG blood work.
-   - Realistic multi-stage extraction simulation (document parse, biomarker detection, reference range calibration).
-   - Interactive verification table allowing users to correct extracted values.
-   - Plain-English medical interpretations of lab tests.
-
-9. **Screen 9: PCOS What-If Lifestyle Simulator**
-   - Interactive sliders and toggles for Sleep (7-8.5 hrs), Physical Activity (30-45 min), Balanced Meal routines, and Stress regulation.
-   - Real-time calculated Routine Resilience & Habit Score (0-100).
-   - Projected behavioral benefits (reduced energy dips, faster sleep latency).
-   - Reassuring ethical guardrails clarifying habit projections vs. medical cures.
-
-10. **Screen 10: Consultation Copilot**
-    - Doctor visit packet generator.
-    - Checklists: Health summary, 90-day symptom timeline, lab highlights, and prioritized doctor discussion questions.
-    - Doctor selector (Gynecologist, Endocrinologist, Nutritionist).
-    - Custom question builder.
-    - Print-ready and downloadable PDF consultation summary.
-
-11. **Screen 11: PCOS Myth Buster & Learning Hub**
-    - Searchable database of common PCOS claims.
-    - Clear **Fact / Myth / Misleading** classification badges.
-    - Empathetic medical explanations citing international guidelines (Monash 2023, ACOG, Endocrine Society).
-    - Category filters (Fertility, Weight, Nutrition, Medical Treatments, Exercise).
-
-12. **Screen 12: My Health Timeline**
-    - Longitudinal chronological stream of cycle start dates, lab analyses, symptom flares, and consultations.
-    - Filterable by category (All, Symptoms, Cycle, Lab, Consultation).
-    - Interactive "Add Health Milestone" form.
-
-13. **Screen 13: Care Gap Detector**
-    - Identifies overdue metabolic check-ups, follow-up consultations, symptom logging gaps, and missing imaging records.
-    - Direct action buttons that link to relevant modules.
-
-14. **Screen 14: Daily Health Tracker**
-    - Quick-log modal to record sleep duration, stress rating (1-5), symptom tags, water intake, and inositol/medication adherence.
-    - Updates dashboard metrics, recent activity, and timeline in real-time.
-
-15. **Screen 15: Settings & Profile**
-    - Editable profile metrics, diagnosis info, and medications.
-    - JSON data export for complete patient health data autonomy.
-    - Reset to demo data button.
-
-16. **Interactive Mobile Frame Simulator View**
-    - Toggle between spacious **Desktop SaaS View** and **Mobile Preview View** right from the top navigation bar!
-    - The Mobile Preview accurately replicates the mobile layout and bottom navigation bar seen in the reference mockups.
+7. **`clinical_records`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`)
+   * `testosterone`, `free_testosterone`, `dheas`, `amh` (Float, Optional)
+   * `ultrasound_findings`, `ovulation_history` (TEXT, Optional)
+   * `recorded_at` (TIMESTAMPTZ)
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Step-by-Step Setup Guide
 
-### Frontend
-- **React.js 19** with Vite
-- **Tailwind CSS v4** with `@tailwindcss/vite`
-- **Lucide React** for clean outline icons
-- **Recharts** for interactive charts (Line, Area, Radar)
-- **Local State & Storage Persistence** (`HealthContext`)
+### 1. PostgreSQL Installation on Windows (If not already installed)
 
-### Backend (Integration-Ready)
-- **Python FastAPI**
-- **SQLAlchemy 2.0 ORM**
-- **PostgreSQL / SQLite** dual-mode engine
-- **Pydantic v2** validation schemas
+You have three easy options:
+
+#### Option A: Windows Package Manager (Fastest via PowerShell)
+Open PowerShell as Administrator and run:
+```powershell
+winget install PostgreSQL.PostgreSQL.16
+```
+
+#### Option B: Official Graphical Installer
+1. Download the Windows installer from [EnterpriseDB PostgreSQL Downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads).
+2. Choose version 16 or 15. Set password for the `postgres` user (e.g. `postgres`).
+3. Complete the installation wizard (keep default port `5432`).
+
+#### Option C: Docker (If Docker Desktop is installed)
+```powershell
+docker run --name pcos360-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=pcos360_db -p 5432:5432 -d postgres:16
+```
 
 ---
 
-## 💻 Running the Application
+### 2. Create the Database
 
-### 1. Run Frontend
-```bash
+Open `psql` (or pgAdmin) and run:
+```sql
+CREATE DATABASE pcos360_db;
+```
+Verify creation:
+```sql
+\l
+```
+
+---
+
+### 3. Backend Environment Configuration (`backend/.env`)
+
+Configure your connection string in `backend/.env`:
+```env
+PROJECT_NAME="PCOS360 API"
+VERSION="1.0.0"
+API_V1_STR="/api"
+ENVIRONMENT="development"
+DEBUG=true
+DEBUG_SQL=false
+HOST="0.0.0.0"
+PORT=8000
+
+# PostgreSQL Connection String:
+DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/pcos360_db"
+
+# CORS configuration allowing React dev server:
+BACKEND_CORS_ORIGINS='["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]'
+```
+
+> **Note:** If PostgreSQL is temporarily stopped or offline during local frontend UI development, PCOS360's database connector automatically falls back to local SQLite (`pcos360.db`) without crashing, and switches to PostgreSQL as soon as the service is available.
+
+---
+
+### 4. Run Alembic Database Migrations
+
+Apply the migration creating all seven database tables:
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+alembic upgrade head
+```
+
+Optionally seed initial development records (Ananya Sharma profile, cycle logs, lab biomarkers):
+```powershell
+python seed_data.py
+```
+
+---
+
+### 5. Running the Backend & Frontend Simultaneously
+
+#### Terminal 1 – Frontend (React + Vite)
+```powershell
 cd frontend
-npm install
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+* **Frontend App:** `http://localhost:5173`
 
-### 2. Run Backend (Optional)
-```bash
+#### Terminal 2 – Backend (FastAPI + PostgreSQL)
+```powershell
 cd backend
-pip install -r requirements.txt
-python main.py
+.\venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload --port 8000
 ```
-FastAPI server will be available at [http://localhost:8000](http://localhost:8000) with interactive Swagger documentation at [http://localhost:8000/docs](http://localhost:8000/docs).
+* **Backend Base:** `http://localhost:8000`
+* **Health Check & DB Status:** `http://localhost:8000/api/health`
+* **Interactive Swagger UI:** `http://localhost:8000/docs`
 
 ---
 
-## 🛡️ Clinical & Ethical Compliance
-PCOS360 complies with modern healthcare design standards:
-- Clear separation between statistical correlation and biological causation.
-- Zero black-box AI: explicit feature weights and model confidence ratings.
-- Reassuring language designed to alleviate health anxiety and empower patient-doctor collaboration.
+## 🧪 Verified API Endpoints
+
+All Phase 2 endpoints have been implemented and verified:
+
+| Resource | Method | Path | Description |
+| :--- | :---: | :--- | :--- |
+| **Health & DB** | `GET` | `/api/health` | Returns service status and PostgreSQL connectivity |
+| **Health Profile** | `POST` | `/api/profile/` | Initialize user health profile |
+| | `GET` | `/api/profile/{user_id}` | Retrieve profile by user ID |
+| | `PUT` | `/api/profile/{user_id}` | Update age, weight, conditions, medications |
+| **Menstrual Cycles** | `POST` | `/api/cycles/` | Log cycle start date, flow intensity, notes |
+| | `GET` | `/api/cycles/{user_id}` | Retrieve full cycle history |
+| | `DELETE`| `/api/cycles/{cycle_id}` | Delete cycle log |
+| **Daily Symptoms** | `POST` | `/api/symptoms/` | Log acne, fatigue, pelvic pain, mood, notes |
+| | `GET` | `/api/symptoms/{user_id}` | List user's recorded symptoms |
+| | `PUT` | `/api/symptoms/{symptom_id}` | Update symptom severity |
+| | `DELETE`| `/api/symptoms/{symptom_id}` | Delete symptom entry |
+| **Lifestyle Logs** | `POST` | `/api/lifestyle/` | Log sleep hours, stress rating (1-5), water, exercise |
+| | `GET` | `/api/lifestyle/{user_id}` | Retrieve longitudinal lifestyle entries |
+| **Lab Reports** | `POST` | `/api/lab-reports/` | Save biomarker name, value, unit, reference range |
+| | `GET` | `/api/lab-reports/{user_id}` | Retrieve all lab test records |
+| | `DELETE`| `/api/lab-reports/{report_id}` | Delete lab record |
+| **Clinical Records**| `POST` | `/api/clinical-records/` | Record androgens (testosterone, AMH), ultrasound findings |
+| | `GET` | `/api/clinical-records/{user_id}` | Retrieve clinical presentation records |

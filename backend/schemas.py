@@ -87,3 +87,4 @@ class ConsultationPacketResponse(BaseModel):
     lab_highlights: List[Dict[str, Any]]
     suggested_questions: List[str]
     generated_at: str
+

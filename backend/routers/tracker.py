@@ -30,3 +30,4 @@ def create_daily_log(log: schemas.DailyLogCreate, db: Session = Depends(get_db))
     db.commit()
     db.refresh(db_log)
     return db_log
+

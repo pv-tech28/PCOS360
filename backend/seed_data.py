@@ -1,98 +1,202 @@
 """
-PCOS360 Database Seeder Script
-Initializes PostgreSQL / SQLite database with realistic demo data for Ananya Sharma.
+PCOS360 Database Seeder
+Seeds initial records for development user (Ananya Sharma) across all 7 database tables.
 """
-from database import SessionLocal, engine, Base
-import models
+from datetime import date, datetime, timezone
+from app.core.database import SessionLocal, get_engine, Base
+from app.models.user import User
+from app.models.health_profile import HealthProfile
+from app.models.menstrual_cycle import MenstrualCycle
+from app.models.daily_symptom import DailySymptom
+from app.models.lifestyle_log import LifestyleLog
+from app.models.lab_report import LabReport
+from app.models.clinical_record import ClinicalRecord
+
 
 def seed():
+    engine = get_engine()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    # Check if profile exists
-    existing = db.query(models.UserProfile).first()
-    if not existing:
-        profile = models.UserProfile(
-            name="Ananya Sharma",
-            email="ananya.sharma@example.com",
-            age=23,
-            height_cm=160.0,
-            weight_kg=65.0,
-            pcos_status="Diagnosed",
-            diagnosis_year=2023,
-            medical_conditions=["Insulin Resistance", "Mild Vitamin D Deficiency"],
-            medications=["Myo-Inositol & D-Chiro Inositol (40:1)", "Vitamin D3 2000 IU", "Omega-3"]
-        )
-        db.add(profile)
-        db.commit()
-        db.refresh(profile)
+    try:
+        # 1. User
+        user = db.query(User).filter(User.id == 1).first()
+        if not user:
+            user = User(
+                id=1,
+                full_name="Ananya Sharma",
+                email="ananya.sharma@example.com",
+                password_hash=None,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            print("✓ Seeded User: Ananya Sharma (ID: 1)")
 
-        # Seed initial lab report
-        report = models.LabReport(
-            user_id=profile.id,
-            filename="Report_Jan2025_Metabolic_Panel.pdf",
-            lab_name="Apex Diagnostic Laboratories",
-            date="2025-01-26",
-            status="Analyzed",
-            verified=True,
-            tests=[
-                {"name": "Fasting Blood Glucose", "value": 96, "unit": "mg/dL", "normalRange": "70 - 99", "status": "Normal", "interpretation": "Normal fasting level."},
-                {"name": "HbA1c", "value": 5.8, "unit": "%", "normalRange": "< 5.7", "status": "Borderline", "interpretation": "Slightly above ideal. Early prediabetic insulin resistance trend."},
-                {"name": "Fasting Insulin", "value": 14.2, "unit": "μIU/mL", "normalRange": "< 10.0", "status": "Borderline", "interpretation": "Elevated basal insulin."},
-                {"name": "LH / FSH Ratio", "value": 2.3, "unit": "Ratio", "normalRange": "1.0 - 1.5", "status": "Elevated", "interpretation": "Characteristic ovulatory dysregulation in classic PCOS."},
-                {"name": "Total Testosterone", "value": 52, "unit": "ng/dL", "normalRange": "15 - 45", "status": "Elevated", "interpretation": "Mild hyperandrogenism."}
+        # 2. Health Profile
+        profile = db.query(HealthProfile).filter(HealthProfile.user_id == 1).first()
+        if not profile:
+            profile = HealthProfile(
+                user_id=1,
+                age=23,
+                height=160.0,
+                weight=65.0,
+                diagnosis_status="Diagnosed",
+                diagnosis_year=2023,
+                existing_conditions=["Insulin Resistance", "Mild Vitamin D Deficiency"],
+                medications=["Myo-Inositol & D-Chiro Inositol (40:1)", "Vitamin D3 2000 IU", "Omega-3"],
+            )
+            db.add(profile)
+            print("✓ Seeded Health Profile")
+
+        # 3. Menstrual Cycles
+        cycle_count = db.query(MenstrualCycle).filter(MenstrualCycle.user_id == 1).count()
+        if cycle_count == 0:
+            cycles = [
+                MenstrualCycle(
+                    user_id=1,
+                    period_start_date=date(2025, 1, 10),
+                    period_end_date=date(2025, 1, 16),
+                    cycle_length=35,
+                    flow_intensity="Medium",
+                    notes="Current cycle: Day 18 Luteal phase",
+                ),
+                MenstrualCycle(
+                    user_id=1,
+                    period_start_date=date(2024, 12, 6),
+                    period_end_date=date(2024, 12, 11),
+                    cycle_length=35,
+                    flow_intensity="Medium",
+                    notes="Mild cramps on Day 1",
+                ),
+                MenstrualCycle(
+                    user_id=1,
+                    period_start_date=date(2024, 10, 31),
+                    period_end_date=date(2024, 11, 6),
+                    cycle_length=36,
+                    flow_intensity="Heavy",
+                    notes="Cycle delayed 3 days due to exams stress",
+                ),
             ]
-        )
-        db.add(report)
+            db.add_all(cycles)
+            print("✓ Seeded Menstrual Cycles (3 records)")
 
-        # Seed initial daily log
-        log = models.DailyLog(
-            user_id=profile.id,
-            date="2025-01-27",
-            cycle_day=18,
-            sleep_hours=7.5,
-            stress_level=2,
-            energy_level="Moderate",
-            water_glasses=8,
-            meds_taken=True,
-            symptoms=["Mild Fatigue", "Bloating / Water Retention"],
-            notes="Morning inositol taken. Afternoon energy stable."
-        )
-        db.add(log)
+        # 4. Daily Symptoms
+        symptom_count = db.query(DailySymptom).filter(DailySymptom.user_id == 1).count()
+        if symptom_count == 0:
+            symptoms = [
+                DailySymptom(
+                    user_id=1,
+                    log_date=date(2025, 1, 27),
+                    acne_severity="Mild",
+                    hair_loss="None",
+                    unwanted_hair_growth="Mild",
+                    fatigue_level=4,
+                    bloating=3,
+                    pelvic_pain=1,
+                    mood="Optimistic",
+                    notes="Energy improved post-supplementation",
+                ),
+                DailySymptom(
+                    user_id=1,
+                    log_date=date(2025, 1, 26),
+                    acne_severity="Mild",
+                    hair_loss="None",
+                    unwanted_hair_growth="Mild",
+                    fatigue_level=6,
+                    bloating=5,
+                    pelvic_pain=2,
+                    mood="Moderate Fatigue",
+                    notes="Late evening work deadline",
+                ),
+            ]
+            db.add_all(symptoms)
+            print("✓ Seeded Daily Symptoms (2 records)")
 
-        # Seed initial care gaps
-        gap1 = models.CareGap(
-            id="gap-1",
-            user_id=profile.id,
-            category="Metabolic",
-            severity="Medium",
-            title="Metabolic Check-up Review Due",
-            description="Your latest HbA1c is 5.8% (borderline). 6 months since last formal fasting insulin assessment.",
-            action_label="Add New Lab Report",
-            route="lab-reports",
-            due_text="Review within 30 days",
-            suggested_questions=["Should we test fasting insulin and C-peptide alongside fasting glucose?"]
-        )
-        gap2 = models.CareGap(
-            id="gap-2",
-            user_id=profile.id,
-            category="Clinical",
-            severity="High",
-            title="Follow-up Consultation Due",
-            description="No gynecologist or endocrinologist visit has been recorded in the last 4 months.",
-            action_label="Prepare Consultation",
-            route="consultation-copilot",
-            due_text="Overdue by 3 weeks",
-            suggested_questions=["Can we review my cycle regularity trends over the last 90 days?"]
-        )
-        db.add(gap1)
-        db.add(gap2)
+        # 5. Lifestyle Logs
+        lifestyle_count = db.query(LifestyleLog).filter(LifestyleLog.user_id == 1).count()
+        if lifestyle_count == 0:
+            logs = [
+                LifestyleLog(
+                    user_id=1,
+                    log_date=date(2025, 1, 27),
+                    sleep_hours=7.5,
+                    stress_level=2,
+                    water_intake=2.5,
+                    exercise_minutes=35,
+                    food_habits="Balanced Low-GI",
+                    meal_regularity="Regular",
+                ),
+                LifestyleLog(
+                    user_id=1,
+                    log_date=date(2025, 1, 26),
+                    sleep_hours=6.2,
+                    stress_level=4,
+                    water_intake=1.8,
+                    exercise_minutes=20,
+                    food_habits="Higher Carb",
+                    meal_regularity="Irregular",
+                ),
+            ]
+            db.add_all(logs)
+            print("✓ Seeded Lifestyle Logs (2 records)")
+
+        # 6. Lab Reports
+        lab_count = db.query(LabReport).filter(LabReport.user_id == 1).count()
+        if lab_count == 0:
+            labs = [
+                LabReport(
+                    user_id=1,
+                    report_name="Metabolic & Hormone Panel",
+                    test_name="HbA1c",
+                    test_value=5.8,
+                    unit="%",
+                    reference_range="< 5.7",
+                    report_date=date(2025, 1, 26),
+                ),
+                LabReport(
+                    user_id=1,
+                    report_name="Metabolic & Hormone Panel",
+                    test_name="Fasting Blood Glucose",
+                    test_value=96.0,
+                    unit="mg/dL",
+                    reference_range="70 - 99",
+                    report_date=date(2025, 1, 26),
+                ),
+                LabReport(
+                    user_id=1,
+                    report_name="Metabolic & Hormone Panel",
+                    test_name="Total Testosterone",
+                    test_value=52.0,
+                    unit="ng/dL",
+                    reference_range="15 - 45",
+                    report_date=date(2025, 1, 26),
+                ),
+            ]
+            db.add_all(labs)
+            print("✓ Seeded Lab Reports (3 records)")
+
+        # 7. Clinical Records
+        clinical_count = db.query(ClinicalRecord).filter(ClinicalRecord.user_id == 1).count()
+        if clinical_count == 0:
+            clinical = ClinicalRecord(
+                user_id=1,
+                testosterone=52.0,
+                free_testosterone=4.8,
+                dheas=280.0,
+                amh=6.2,
+                ultrasound_findings="Pending Pelvic Ultrasound imaging review",
+                ovulation_history="Oligomenorrhea with 34-38 day intervals",
+                recorded_at=datetime.now(timezone.utc),
+            )
+            db.add(clinical)
+            print("✓ Seeded Clinical Records (1 record)")
 
         db.commit()
-        print("✓ Database seeded successfully with initial clinical records.")
-    else:
-        print("Database already contains records.")
-    db.close()
+        print("✓ All 7 tables seeded successfully for User 1.")
+    finally:
+        db.close()
+
 
 if __name__ == "__main__":
     seed()

@@ -50,3 +50,4 @@ def generate_copilot_packet(req: schemas.ConsultationPacketRequest, db: Session 
         suggested_questions=default_questions,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     )
+

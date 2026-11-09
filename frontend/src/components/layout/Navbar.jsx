@@ -9,9 +9,11 @@ import {
   CheckCircle2,
   ChevronRight,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Server
 } from 'lucide-react';
 import { useHealth } from '../../context/HealthContext';
+import { apiClient } from '../../services/api';
 
 export default function Navbar({ onMenuToggle }) {
   const {
@@ -28,6 +30,7 @@ export default function Navbar({ onMenuToggle }) {
   } = useHealth();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [apiStatus, setApiStatus] = useState({ checked: false, connected: false, service: '', version: '' });
   const notifRef = useRef(null);
 
   const unreadCount = notifications.filter(n => n.unread).length;
@@ -48,6 +51,27 @@ export default function Navbar({ onMenuToggle }) {
     'care-gaps': 'Care Gap Detector',
     settings: 'Settings & Health Profile'
   };
+
+  // Check backend health connection
+  useEffect(() => {
+    let isMounted = true;
+    async function verifyBackend() {
+      const res = await apiClient.checkHealth();
+      if (isMounted) {
+        if (res && res.status === 'healthy') {
+          setApiStatus({ checked: true, connected: true, service: res.service, version: res.version });
+        } else {
+          setApiStatus({ checked: true, connected: false, service: '', version: '' });
+        }
+      }
+    }
+    verifyBackend();
+    const interval = setInterval(verifyBackend, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Close notifications on outside click
   useEffect(() => {
@@ -88,6 +112,30 @@ export default function Navbar({ onMenuToggle }) {
 
       {/* Right controls */}
       <div className="flex items-center gap-2 sm:gap-4">
+        {/* Backend API Live Status Pill */}
+        <div
+          className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+            apiStatus.connected
+              ? 'bg-[#EAF7EE] text-[#247A46] border-[#CEEFD7]'
+              : 'bg-stone-50 text-stone-600 border-stone-200'
+          }`}
+          title={
+            apiStatus.connected
+              ? `Connected to FastAPI backend (${apiStatus.service} v${apiStatus.version}) on http://localhost:8000`
+              : 'Connecting to backend API on http://localhost:8000...'
+          }
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              apiStatus.connected ? 'bg-emerald-600 animate-pulse' : 'bg-amber-400'
+            }`}
+          />
+          <span className="flex items-center gap-1">
+            <Server className="w-3 h-3 text-stone-500" />
+            {apiStatus.connected ? 'API: Live (8000)' : 'API: Connecting...'}
+          </span>
+        </div>
+
         {/* Cycle status pill */}
         <div
           onClick={() => setActiveScreen('health-tracker')}

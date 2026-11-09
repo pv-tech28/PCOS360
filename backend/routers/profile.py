@@ -25,3 +25,4 @@ def update_profile(profile_data: schemas.UserProfileBase, db: Session = Depends(
     db.commit()
     db.refresh(profile)
     return profile
+
