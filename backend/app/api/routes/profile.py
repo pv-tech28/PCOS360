@@ -60,3 +60,4 @@ def update_profile(user_id: int, payload: HealthProfileUpdate, db: Session = Dep
     db.commit()
     db.refresh(profile)
     return profile
+

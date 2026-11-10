@@ -16,3 +16,4 @@ def ensure_dev_user(db: Session, user_id: int = 1) -> User:
         db.commit()
         db.refresh(user)
     return user
+

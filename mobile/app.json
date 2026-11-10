@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "PCOS360",
+    "slug": "pcos360-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FAF9FC",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#7950A8"
+      },
+      "package": "com.pcos360.health"
+    },
+    "extra": {
+      "eas": {}
+    }
+  }
+}
+

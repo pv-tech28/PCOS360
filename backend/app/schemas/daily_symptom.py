@@ -37,3 +37,4 @@ class DailySymptomResponse(DailySymptomBase):
 
     class Config:
         from_attributes = True
+

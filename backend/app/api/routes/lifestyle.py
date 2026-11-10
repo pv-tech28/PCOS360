@@ -33,3 +33,4 @@ def get_user_lifestyle(user_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return logs
+

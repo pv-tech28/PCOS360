@@ -67,3 +67,4 @@ def delete_symptom_log(symptom_id: int, db: Session = Depends(get_db)):
     db.delete(symptom)
     db.commit()
     return {"message": f"Symptom log {symptom_id} successfully deleted."}
+

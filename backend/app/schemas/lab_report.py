@@ -22,3 +22,4 @@ class LabReportResponse(LabReportBase):
 
     class Config:
         from_attributes = True
+

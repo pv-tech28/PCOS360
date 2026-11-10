@@ -47,3 +47,4 @@ def delete_cycle(cycle_id: int, db: Session = Depends(get_db)):
     db.delete(cycle)
     db.commit()
     return {"message": f"Menstrual cycle record {cycle_id} successfully deleted."}
+

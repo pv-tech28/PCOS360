@@ -24,3 +24,4 @@ class LifestyleLogResponse(LifestyleLogBase):
 
     class Config:
         from_attributes = True
+

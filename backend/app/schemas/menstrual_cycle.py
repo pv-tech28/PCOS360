@@ -22,3 +22,4 @@ class MenstrualCycleResponse(MenstrualCycleBase):
 
     class Config:
         from_attributes = True
+

@@ -35,3 +35,4 @@ class HealthProfileResponse(HealthProfileBase):
 
     class Config:
         from_attributes = True
+

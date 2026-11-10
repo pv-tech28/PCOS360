@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+*/node_modules/
+backend/venv/
+venv/
+ENV/
+
+# Production & Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Expo & Mobile
+.expo/
+*/.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Python caches
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+*.db
+.pytest_cache/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local

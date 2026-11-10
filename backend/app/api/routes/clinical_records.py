@@ -33,3 +33,4 @@ def get_user_clinical_records(user_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return records
+

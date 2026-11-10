@@ -21,3 +21,4 @@ class User(Base):
     lifestyle_logs = relationship("LifestyleLog", back_populates="user", cascade="all, delete-orphan")
     lab_reports = relationship("LabReport", back_populates="user", cascade="all, delete-orphan")
     clinical_records = relationship("ClinicalRecord", back_populates="user", cascade="all, delete-orphan")
+
