@@ -3,6 +3,7 @@ PCOS360 Database Seeder
 Seeds initial records for development user (Ananya Sharma) across all 7 database tables.
 """
 from datetime import date, datetime, timezone
+from sqlalchemy import inspect
 from app.core.database import SessionLocal, get_engine, Base
 from app.models.user import User
 from app.models.health_profile import HealthProfile
@@ -15,7 +16,12 @@ from app.models.clinical_record import ClinicalRecord
 
 def seed():
     engine = get_engine()
-    Base.metadata.create_all(bind=engine)
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(bind=engine)
+    elif not inspect(engine).has_table("users"):
+        raise RuntimeError(
+            "PostgreSQL schema is not initialized. Run 'alembic upgrade head' before running seed_data.py."
+        )
     db = SessionLocal()
 
     try:

@@ -1,22 +1,34 @@
 from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import inspect
 from app.core.config import settings
-from app.core.database import Base, get_engine
+from app.core.database import Base, DatabaseConnectionError, get_engine
 from app.api.routes import api_router
 from app.schemas.health import RootResponse
 import app.models  # Ensure all SQLAlchemy models are registered
 
+logger = logging.getLogger("pcos360.app")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure all tables exist in the active database engine
+    # Auto-create tables only for local SQLite; PostgreSQL schema should be managed via Alembic.
     try:
         engine = get_engine()
-        Base.metadata.create_all(bind=engine)
+        if engine.dialect.name == "sqlite":
+            Base.metadata.create_all(bind=engine)
+        elif not inspect(engine).has_table("users"):
+            logger.warning(
+                "PostgreSQL connected, but application tables are missing. "
+                "Run 'alembic upgrade head' inside backend/ before serving API requests."
+            )
+    except DatabaseConnectionError as e:
+        logger.error(f"Database startup check failed: {e}")
     except Exception as e:
-        print(f"Database table initialization notice: {e}")
+        logger.warning(f"Database table initialization notice: {e}")
     yield
 
 
@@ -38,6 +50,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(DatabaseConnectionError)
+async def database_unavailable_handler(request: Request, exc: DatabaseConnectionError):
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": "Database Unavailable",
+            "detail": str(exc),
+        },
+    )
 
 
 # Basic Exception Handling
