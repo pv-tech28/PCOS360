@@ -25,6 +25,8 @@ export default function Navbar({ onMenuToggle }) {
     setIsLogModalOpen,
     setIsOnboardingOpen,
     profile,
+    authUser,
+    isDemoMode,
     viewMode,
     setViewMode
   } = useHealth();
@@ -243,15 +245,20 @@ export default function Navbar({ onMenuToggle }) {
         {/* Profile Avatar Trigger */}
         <button
           onClick={() => setIsOnboardingOpen(true)}
-          className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full border border-[#EFEAF4] bg-white hover:border-[#DFCDEE] transition-all"
+          className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full border border-[#EFEAF4] bg-white hover:border-[#DFCDEE] transition-all cursor-pointer"
           title="Edit Health Profile"
         >
           <div className="w-8 h-8 rounded-full bg-[#EDE5F7] text-[#7950A8] flex items-center justify-center font-bold text-xs">
-            {profile.name ? profile.name.charAt(0) : 'A'}
+            {(profile.name || authUser?.full_name || 'U').charAt(0).toUpperCase()}
           </div>
           <span className="text-xs font-semibold text-[#292431] hidden sm:inline max-w-24 truncate">
-            {profile.name.split(' ')[0]}
+            {(profile.name || authUser?.full_name || 'Account').split(' ')[0]}
           </span>
+          {isDemoMode && (
+            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              Demo
+            </span>
+          )}
         </button>
       </div>
     </header>

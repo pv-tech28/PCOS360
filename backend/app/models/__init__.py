@@ -1,5 +1,6 @@
 from app.core.database import Base
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.health_profile import HealthProfile
 from app.models.menstrual_cycle import MenstrualCycle
 from app.models.daily_symptom import DailySymptom
@@ -10,6 +11,7 @@ from app.models.clinical_record import ClinicalRecord
 __all__ = [
     "Base",
     "User",
+    "UserSession",
     "HealthProfile",
     "MenstrualCycle",
     "DailySymptom",

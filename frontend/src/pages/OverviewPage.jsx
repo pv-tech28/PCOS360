@@ -79,7 +79,7 @@ export default function OverviewPage() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-bold text-[#292431]">
-              Hi, {profile.name.split(' ')[0]} 👋
+              Hi, {(profile.name || 'there').split(' ')[0]} 👋
             </h2>
             <Badge variant="purple" size="xs">
               {profile.pcosStatus}
@@ -97,8 +97,14 @@ export default function OverviewPage() {
           title="Click to view/edit profile"
         >
           <div className="text-right">
-            <p className="text-xs font-bold text-[#292431]">{profile.age} yrs • {profile.heightCm} cm • {profile.weightKg} kg</p>
-            <p className="text-[11px] text-[#7950A8] font-medium">Diagnosed {profile.diagnosisYear || '2023'}</p>
+            <p className="text-xs font-bold text-[#292431]">
+              {profile.initialized
+                ? `${profile.age} yrs • ${profile.heightCm} cm • ${profile.weightKg} kg`
+                : 'Profile not set up yet'}
+            </p>
+            <p className="text-[11px] text-[#7950A8] font-medium">
+              {profile.initialized ? `Status: ${profile.pcosStatus}` : 'Click to initialize'}
+            </p>
           </div>
           <ChevronRight className="w-4 h-4 text-[#9E98A8]" />
         </div>
@@ -261,23 +267,29 @@ export default function OverviewPage() {
           </div>
 
           <div className="space-y-3">
-            {insights.slice(0, 2).map((insight) => (
-              <div
-                key={insight.id}
-                onClick={() => setActiveScreen('ai-insights')}
-                className="p-4 rounded-2xl border border-[#EFEAF4] hover:border-[#DFCDEE] bg-[#FAF9FC]/50 hover:bg-[#FAF9FC] transition-all cursor-pointer"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#7950A8] bg-[#EDE5F7] px-2 py-0.5 rounded-md">
-                    {insight.module}
-                  </span>
-                  <span className="text-[11px] text-[#9E98A8]">{insight.confidence}</span>
-                </div>
-                <h4 className="text-xs sm:text-sm font-bold text-[#292431] mt-1">{insight.title}</h4>
-                <p className="text-xs text-[#77717F] mt-1 leading-relaxed">{insight.summary}</p>
-                <p className="text-xs text-[#553878] mt-2 font-medium">✨ Recommendation: {insight.actionableTip}</p>
+            {insights.length === 0 ? (
+              <div className="p-4 rounded-2xl border border-[#EFEAF4] bg-[#FAF9FC]/60 text-xs text-[#77717F]">
+                No personalized insights yet. Complete your profile, log daily symptoms, or upload lab biomarkers to populate your overview.
               </div>
-            ))}
+            ) : (
+              insights.slice(0, 2).map((insight) => (
+                <div
+                  key={insight.id}
+                  onClick={() => setActiveScreen('ai-insights')}
+                  className="p-4 rounded-2xl border border-[#EFEAF4] hover:border-[#DFCDEE] bg-[#FAF9FC]/50 hover:bg-[#FAF9FC] transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#7950A8] bg-[#EDE5F7] px-2 py-0.5 rounded-md">
+                      {insight.module}
+                    </span>
+                    <span className="text-[11px] text-[#9E98A8]">{insight.confidence}</span>
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[#292431] mt-1">{insight.title}</h4>
+                  <p className="text-xs text-[#77717F] mt-1 leading-relaxed">{insight.summary}</p>
+                  <p className="text-xs text-[#553878] mt-2 font-medium">✨ Recommendation: {insight.actionableTip}</p>
+                </div>
+              ))
+            )}
           </div>
 
           <EthicalDisclaimer className="mt-4" title="Decision-Support Only">
@@ -305,18 +317,24 @@ export default function OverviewPage() {
             </div>
 
             <div className="space-y-3 max-h-72 overflow-y-auto">
-              {recentActivities.map((act) => (
-                <div key={act.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-[#FAF9FC] transition-colors">
-                  <div className="w-7 h-7 rounded-lg bg-[#EDE5F7] text-[#7950A8] flex items-center justify-center shrink-0 mt-0.5">
-                    {act.type === 'log' ? <Heart className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+              {recentActivities.length === 0 ? (
+                <p className="text-xs text-[#77717F] py-3">
+                  No recent activity logged to this account yet.
+                </p>
+              ) : (
+                recentActivities.map((act) => (
+                  <div key={act.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-[#FAF9FC] transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-[#EDE5F7] text-[#7950A8] flex items-center justify-center shrink-0 mt-0.5">
+                      {act.type === 'log' ? <Heart className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#292431] truncate">{act.title}</p>
+                      <p className="text-[11px] text-[#77717F] truncate">{act.detail}</p>
+                      <span className="text-[10px] text-[#9E98A8] block mt-0.5">{act.time}</span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-[#292431] truncate">{act.title}</p>
-                    <p className="text-[11px] text-[#77717F] truncate">{act.detail}</p>
-                    <span className="text-[10px] text-[#9E98A8] block mt-0.5">{act.time}</span>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

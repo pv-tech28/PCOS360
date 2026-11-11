@@ -83,17 +83,17 @@ export const initialLabReports = [
     status: "Analyzed",
     verified: true,
     tests: [
-      { name: "Fasting Blood Glucose", value: 96, unit: "mg/dL", normalRange: "70 - 99", status: "Normal", interpretation: "Within healthy fasting limits." },
-      { name: "HbA1c", value: 5.8, unit: "%", normalRange: "< 5.7", status: "Borderline", interpretation: "Slightly above ideal range. Consider discussing with your doctor." },
-      { name: "Fasting Insulin", value: 14.2, unit: "μIU/mL", normalRange: "< 10.0 (Optimal)", status: "Borderline", interpretation: "Elevated fasting insulin often precedes blood sugar rises in PCOS." },
-      { name: "Total Cholesterol", value: 204, unit: "mg/dL", normalRange: "< 200", status: "Borderline", interpretation: "Mildly elevated total cholesterol." },
-      { name: "LDL Cholesterol", value: 118, unit: "mg/dL", normalRange: "< 100", status: "Borderline", interpretation: "Slightly above recommended cardiovascular target for women with metabolic PCOS." },
-      { name: "HDL Cholesterol", value: 48, unit: "mg/dL", normalRange: "> 50", status: "Borderline", interpretation: "Protective HDL is slightly low." },
-      { name: "Triglycerides", value: 165, unit: "mg/dL", normalRange: "< 150", status: "Borderline", interpretation: "Mildly elevated; closely associated with carbohydrate processing and insulin resistance." },
-      { name: "LH / FSH Ratio", value: 2.3, unit: "Ratio", normalRange: "1.0 - 1.5", status: "Elevated", interpretation: "Elevated ratio (2.3:1) is characteristic of ovulatory dysregulation in classic PCOS." },
-      { name: "Total Testosterone", value: 52, unit: "ng/dL", normalRange: "15 - 45", status: "Elevated", interpretation: "Mild hyperandrogenism; correlates with hirsutism or acne complaints." },
-      { name: "TSH (Thyroid Stimulating Hormone)", value: 2.1, unit: "mIU/L", normalRange: "0.4 - 4.0", status: "Normal", interpretation: "Thyroid function currently within normal euthyroid reference range." },
-      { name: "25-OH Vitamin D", value: 24, unit: "ng/mL", normalRange: "30 - 100", status: "Low", interpretation: "Insufficient vitamin D. Vitamin D is an essential cofactor in follicular development and insulin sensitivity." }
+      { name: "Fasting Blood Glucose", value: 96, unit: "mg/dL", normalRange: "70 - 99", status: "Normal", interpretation: "Informational (not diagnostic): Within reference fasting limits." },
+      { name: "HbA1c", value: 5.8, unit: "%", normalRange: "< 5.7", status: "Borderline", interpretation: "Informational (not diagnostic): Slightly above reference range. Discuss with your doctor." },
+      { name: "Fasting Insulin", value: 14.2, unit: "μIU/mL", normalRange: "< 10.0 (Optimal)", status: "Borderline", interpretation: "Informational (not diagnostic): Above <10.0 μIU/mL reference range; review with your clinician." },
+      { name: "Total Cholesterol", value: 204, unit: "mg/dL", normalRange: "< 200", status: "Borderline", interpretation: "Informational (not diagnostic): Above <200 mg/dL reference range." },
+      { name: "LDL Cholesterol", value: 118, unit: "mg/dL", normalRange: "< 100", status: "Borderline", interpretation: "Informational (not diagnostic): Above <100 mg/dL reference target." },
+      { name: "HDL Cholesterol", value: 48, unit: "mg/dL", normalRange: "> 50", status: "Borderline", interpretation: "Informational (not diagnostic): Below >50 mg/dL reference threshold." },
+      { name: "Triglycerides", value: 165, unit: "mg/dL", normalRange: "< 150", status: "Borderline", interpretation: "Informational (not diagnostic): Above <150 mg/dL reference range." },
+      { name: "LH / FSH Ratio", value: 2.3, unit: "Ratio", normalRange: "1.0 - 1.5", status: "Elevated", interpretation: "Informational (not diagnostic): Above 1.0 - 1.5 reference ratio." },
+      { name: "Total Testosterone", value: 52, unit: "ng/dL", normalRange: "15 - 45", status: "Elevated", interpretation: "Informational (not diagnostic): Above 15 - 45 ng/dL reference range." },
+      { name: "TSH (Thyroid Stimulating Hormone)", value: 2.1, unit: "mIU/L", normalRange: "0.4 - 4.0", status: "Normal", interpretation: "Informational (not diagnostic): Within reference range." },
+      { name: "25-OH Vitamin D", value: 24, unit: "ng/mL", normalRange: "30 - 100", status: "Low", interpretation: "Informational (not diagnostic): Below 30 - 100 ng/mL reference range." }
     ]
   },
   {
@@ -105,11 +105,11 @@ export const initialLabReports = [
     status: "Analyzed",
     verified: true,
     tests: [
-      { name: "Fasting Blood Glucose", value: 92, unit: "mg/dL", normalRange: "70 - 99", status: "Normal", interpretation: "Normal fasting level." },
-      { name: "HbA1c", value: 5.6, unit: "%", normalRange: "< 5.7", status: "Normal", interpretation: "Normal glycemic average over past 90 days." },
-      { name: "Total Cholesterol", value: 192, unit: "mg/dL", normalRange: "< 200", status: "Normal", interpretation: "Within healthy boundaries." },
-      { name: "Total Testosterone", value: 58, unit: "ng/dL", normalRange: "15 - 45", status: "Elevated", interpretation: "Elevated androgen levels." },
-      { name: "LH / FSH Ratio", value: 2.6, unit: "Ratio", normalRange: "1.0 - 1.5", status: "Elevated", interpretation: "Elevated ratio." }
+      { name: "Fasting Blood Glucose", value: 92, unit: "mg/dL", normalRange: "70 - 99", status: "Normal", interpretation: "Informational (not diagnostic): Within reference fasting limits." },
+      { name: "HbA1c", value: 5.6, unit: "%", normalRange: "< 5.7", status: "Normal", interpretation: "Informational (not diagnostic): Within reference range." },
+      { name: "Total Cholesterol", value: 192, unit: "mg/dL", normalRange: "< 200", status: "Normal", interpretation: "Informational (not diagnostic): Within reference range." },
+      { name: "Total Testosterone", value: 58, unit: "ng/dL", normalRange: "15 - 45", status: "Elevated", interpretation: "Informational (not diagnostic): Above reference range." },
+      { name: "LH / FSH Ratio", value: 2.6, unit: "Ratio", normalRange: "1.0 - 1.5", status: "Elevated", interpretation: "Informational (not diagnostic): Above reference ratio." }
     ]
   }
 ];

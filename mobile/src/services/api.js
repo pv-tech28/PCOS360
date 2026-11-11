@@ -1,6 +1,9 @@
-// PCOS360 Mobile API Service - Communicates with FastAPI backend
+// PCOS360 Mobile API Service - Authenticated FastAPI client
 import { NativeModules, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+
+const AUTH_TOKEN_KEY = '@pcos360_auth_token_v1';
 
 // Auto-resolve backend host from Metro/Expo dev server URL:
 // - Physical device via USB (`adb reverse`): localhost -> http://localhost:8000
@@ -11,7 +14,9 @@ const resolveDefaultHost = () => {
     return 'http://localhost:8000';
   }
 
-  const scriptURL = NativeModules.SourceCode?.scriptURL;
+  const scriptURL =
+    NativeModules.SourceCode?.getConstants?.()?.scriptURL ||
+    NativeModules.SourceCode?.scriptURL;
   if (scriptURL && /^https?:\/\//i.test(scriptURL)) {
     const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
     if (match?.[1]) {
@@ -35,31 +40,91 @@ const resolveDefaultHost = () => {
 const DEFAULT_HOST = resolveDefaultHost();
 
 let currentBaseUrl = DEFAULT_HOST;
+let cachedToken = null;
+let unauthorizedHandler = null;
 
 export const setApiBaseUrl = (newUrl) => {
   if (newUrl) {
-    currentBaseUrl = newUrl.replace(/\/$/, '');
+    currentBaseUrl = newUrl.trim().replace(/\/+$/, '');
   }
 };
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
+export async function loadAuthToken() {
+  try {
+    const stored = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    cachedToken = stored || null;
+    return cachedToken;
+  } catch {
+    return cachedToken;
+  }
+}
+
+export async function setAuthToken(token) {
+  cachedToken = token || null;
+  try {
+    if (token) {
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch {
+    // Ignore storage errors gracefully
+  }
+}
+
+export async function clearAuthToken() {
+  await setAuthToken(null);
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = typeof handler === 'function' ? handler : null;
+}
+
+function formatErrorDetail(detail, fallbackText) {
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((item) => {
+        const loc = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : '';
+        const msg = item.msg || 'Invalid value';
+        return loc ? `${loc}: ${msg}` : msg;
+      })
+      .join('; ');
+  }
+  return fallbackText;
+}
+
 async function request(endpoint, options = {}) {
   const url = `${currentBaseUrl}${endpoint}`;
+  const { skipAuth = false, headers: customHeaders = {}, ...fetchOptions } = options;
+
+  let token = cachedToken;
+  if (!skipAuth && !token) {
+    token = await loadAuthToken();
+  }
+
   const defaultHeaders = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+  if (!skipAuth && token) {
+    defaultHeaders.Authorization = `Bearer ${token}`;
+  }
 
+  let timeoutId;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout for mobile
+    timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       headers: {
         ...defaultHeaders,
-        ...(options.headers || {}),
+        ...customHeaders,
       },
       signal: controller.signal,
     });
@@ -68,43 +133,112 @@ async function request(endpoint, options = {}) {
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
-      const error = new Error(errorBody.detail || `HTTP Error ${response.status}: ${response.statusText}`);
+      const message = formatErrorDetail(
+        errorBody.detail,
+        `HTTP Error ${response.status}: ${response.statusText}`
+      );
+      const error = new Error(message);
       error.status = response.status;
       error.detail = errorBody.detail;
+
+      if (response.status === 401 && !skipAuth) {
+        await clearAuthToken();
+        if (unauthorizedHandler) {
+          unauthorizedHandler(error);
+        }
+      }
+
       throw error;
     }
 
+    if (response.status === 204) {
+      return null;
+    }
     return await response.json();
   } catch (err) {
+    clearTimeout(timeoutId);
     if (err.status) throw err;
-    const networkError = new Error(`Cannot connect to backend at ${currentBaseUrl}`);
+    const networkError = new Error(`Offline or cannot reach backend at ${currentBaseUrl}`);
     networkError.isNetworkError = true;
     throw networkError;
   }
 }
 
 export const apiClient = {
-  // Base Health Check
+  // Base Health Check (public)
   async checkHealth() {
     try {
-      return await request('/api/health');
+      return await request('/api/health', { skipAuth: true });
     } catch {
       return null;
     }
   },
 
-  // Health Profile
-  async getProfile(userId = 1) {
+  // Authentication & Session
+  async register({ fullName, email, password }) {
+    const data = await request('/api/auth/register', {
+      method: 'POST',
+      skipAuth: true,
+      body: JSON.stringify({
+        full_name: fullName,
+        email,
+        password,
+      }),
+    });
+    if (data?.access_token) {
+      await setAuthToken(data.access_token);
+    }
+    return data;
+  },
+
+  async login({ email, password }) {
+    const data = await request('/api/auth/login', {
+      method: 'POST',
+      skipAuth: true,
+      body: JSON.stringify({ email, password }),
+    });
+    if (data?.access_token) {
+      await setAuthToken(data.access_token);
+    }
+    return data;
+  },
+
+  async logout() {
+    const token = cachedToken || (await loadAuthToken());
     try {
-      return await request(`/api/profile/${userId}`);
+      if (token) {
+        await request('/api/auth/logout', { method: 'POST' });
+      }
+    } catch {
+      // Ignore network/already-expired errors when signing out locally
+    } finally {
+      await clearAuthToken();
+    }
+  },
+
+  async getMe() {
+    return await request('/api/auth/me');
+  },
+
+  async updateMe({ fullName }) {
+    return await request('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ full_name: fullName }),
+    });
+  },
+
+  // Health Profile
+  async getProfile() {
+    try {
+      return await request('/api/profile/me');
     } catch (err) {
       if (err.status === 404) return null;
       throw err;
     }
   },
 
-  async updateProfile(userId = 1, profileData) {
-    return await request(`/api/profile/${userId}`, {
+  async updateProfile(profileData) {
+    return await request('/api/profile/me', {
       method: 'PUT',
       body: JSON.stringify(profileData),
     });
@@ -118,19 +252,14 @@ export const apiClient = {
   },
 
   // Menstrual Cycles
-  async getCycles(userId = 1) {
-    try {
-      return await request(`/api/cycles/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch cycles from backend:', err.message);
-      return [];
-    }
+  async getCycles() {
+    return await request('/api/cycles/');
   },
 
   async createCycle(cycleData) {
     return await request('/api/cycles/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...cycleData }),
+      body: JSON.stringify(cycleData),
     });
   },
 
@@ -141,19 +270,14 @@ export const apiClient = {
   },
 
   // Daily Symptoms
-  async getSymptoms(userId = 1) {
-    try {
-      return await request(`/api/symptoms/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch symptoms from backend:', err.message);
-      return [];
-    }
+  async getSymptoms() {
+    return await request('/api/symptoms/');
   },
 
   async createSymptom(symptomData) {
     return await request('/api/symptoms/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...symptomData }),
+      body: JSON.stringify(symptomData),
     });
   },
 
@@ -171,36 +295,26 @@ export const apiClient = {
   },
 
   // Lifestyle Logs
-  async getLifestyle(userId = 1) {
-    try {
-      return await request(`/api/lifestyle/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch lifestyle logs from backend:', err.message);
-      return [];
-    }
+  async getLifestyle() {
+    return await request('/api/lifestyle/');
   },
 
   async createLifestyle(lifestyleData) {
     return await request('/api/lifestyle/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...lifestyleData }),
+      body: JSON.stringify(lifestyleData),
     });
   },
 
   // Lab Reports
-  async getLabReports(userId = 1) {
-    try {
-      return await request(`/api/lab-reports/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch lab reports from backend:', err.message);
-      return [];
-    }
+  async getLabReports() {
+    return await request('/api/lab-reports/');
   },
 
   async createLabReport(reportData) {
     return await request('/api/lab-reports/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...reportData }),
+      body: JSON.stringify(reportData),
     });
   },
 
@@ -211,22 +325,16 @@ export const apiClient = {
   },
 
   // Clinical Records
-  async getClinicalRecords(userId = 1) {
-    try {
-      return await request(`/api/clinical-records/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch clinical records from backend:', err.message);
-      return [];
-    }
+  async getClinicalRecords() {
+    return await request('/api/clinical-records/');
   },
 
   async createClinicalRecord(recordData) {
     return await request('/api/clinical-records/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...recordData }),
+      body: JSON.stringify(recordData),
     });
   },
 };
 
 export default apiClient;
-

@@ -49,6 +49,15 @@ export default function CopilotScreen({ navigation }) {
     try {
       setIsGenerating(true);
 
+      const latestTestsHtml = (labReports[0]?.tests || []).length
+        ? labReports[0].tests
+            .map(
+              (t) =>
+                `<li><strong>${t.name}:</strong> ${t.value} ${t.unit} <span class="badge">${t.status}</span> (Ref: ${t.normalRange})</li>`
+            )
+            .join('')
+        : '<li>No laboratory biomarkers uploaded yet.</li>';
+
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -69,23 +78,19 @@ export default function CopilotScreen({ navigation }) {
           </head>
           <body>
             <h1>PCOS360 Consultation Summary</h1>
-            <div class="tagline">Prepared for Physician Visit • Patient: ${profile.name || 'Ananya Sharma'}</div>
+            <div class="tagline">Prepared for Physician Visit • Patient: ${profile.fullName || profile.name || 'Member'}</div>
             
             <div class="card">
               <div class="title">Patient Profile</div>
-              <div class="metric"><strong>Age:</strong> ${profile.age || 23} years | <strong>Status:</strong> ${profile.pcosStatus || 'Diagnosed'} (${profile.diagnosisYear || 2023})</div>
-              <div class="metric"><strong>Cycle Metrics:</strong> Day ${cycleData.currentDay || 18} of ${cycleData.totalDays || 35} (${cycleData.phase || 'Luteal Phase'})</div>
-              <div class="metric"><strong>Supplements:</strong> ${(profile.medications || []).join(', ')}</div>
+              <div class="metric"><strong>Age:</strong> ${profile.age || 'N/A'} years | <strong>Status:</strong> ${profile.pcosStatus || 'Unsure'} (${profile.diagnosisYear || 'N/A'})</div>
+              <div class="metric"><strong>Cycle Metrics:</strong> Day ${cycleData.currentDay || 1} of ${cycleData.totalDays || 28} (${cycleData.phase || 'Not logged yet'})</div>
+              <div class="metric"><strong>Supplements:</strong> ${(profile.medications || []).join(', ') || 'None recorded'}</div>
             </div>
 
             <div class="card">
-              <div class="title">Latest Laboratory Highlights (Apex Diagnostics)</div>
+              <div class="title">Latest Laboratory Highlights (Informational Only — Not Diagnostic)</div>
               <ul>
-                <li><strong>HbA1c:</strong> 5.8% <span class="badge">Borderline</span> (Reference: < 5.7%)</li>
-                <li><strong>Fasting Blood Glucose:</strong> 96 mg/dL (Reference: 70 - 99 mg/dL)</li>
-                <li><strong>Fasting Insulin:</strong> 14.2 μIU/mL (Optimal: < 10.0 μIU/mL)</li>
-                <li><strong>Total Testosterone:</strong> 52 ng/dL <span class="badge">Elevated</span> (Reference: 15 - 45 ng/dL)</li>
-                <li><strong>LH / FSH Ratio:</strong> 2.3:1 (Reference: 1.0 - 1.5)</li>
+                ${latestTestsHtml}
               </ul>
             </div>
 
@@ -97,7 +102,7 @@ export default function CopilotScreen({ navigation }) {
             </div>
             
             <p style="font-size: 11px; color: #77717F; margin-top: 30px; text-align: center;">
-              PCOS360 Healthcare Intelligence • Not a medical prescription • Consult authorized physician.
+              PCOS360 Healthcare Intelligence • Informational summary only, not diagnostic or a medical prescription • Consult an authorized physician.
             </p>
           </body>
         </html>

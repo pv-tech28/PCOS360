@@ -13,11 +13,8 @@ import {
   User,
   Database,
   RefreshCw,
-  Server,
+  LogOut,
   Shield,
-  Info,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';
@@ -29,8 +26,11 @@ import { useHealth } from '../../context/HealthContext';
 
 export default function SettingsScreen({ navigation }) {
   const {
+    authUser,
+    isAuthenticated,
+    isDemoMode,
+    logout,
     profile,
-    updateProfile,
     dbConnected,
     checkBackendStatus,
     apiServerUrl,
@@ -42,51 +42,75 @@ export default function SettingsScreen({ navigation }) {
 
   const handleTestConnection = async () => {
     setIsTesting(true);
-    await updateApiUrl(inputUrl);
-    const isHealthy = await checkBackendStatus();
+    const isHealthy = await updateApiUrl(inputUrl);
     setIsTesting(false);
     if (isHealthy) {
       Alert.alert('Connection Successful', `Connected to PCOS360 FastAPI Backend at ${inputUrl}`);
     } else {
       Alert.alert(
         'Connection Failed',
-        `Could not reach ${inputUrl}. If using Android Emulator, use http://10.0.2.2:8000. If using a physical phone with Expo Go, use your computer's Wi-Fi IP (e.g. http://192.168.1.X:8000).`
+        `Could not reach ${inputUrl}. If using Android Emulator, use http://10.0.2.2:8000. If using a physical phone with USB adb reverse, use http://localhost:8000, or over Wi-Fi use your computer LAN IP (e.g. http://192.168.1.X:8000).`
       );
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Header showBack title="Settings & Integration" />
+      <Header showBack title="Settings & Account" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Patient Profile Card */}
-        <Text style={styles.sectionTitle}>Patient Profile</Text>
-        <Card style={styles.card}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarBox}>
-              <User size={24} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileName}>{profile.fullName || profile.name}</Text>
-              <Text style={styles.profileDetails}>
-                {profile.age} yrs • {profile.heightCm} cm • {profile.weightKg} kg
-              </Text>
-            </View>
-            <Badge label={profile.pcosStatus} variant="primary" size="small" />
-          </View>
+        {(isAuthenticated || isDemoMode) && (
+          <>
+            <Text style={styles.sectionTitle}>
+              {isDemoMode ? 'Demo Mode (Sample Data)' : 'Account & Health Profile'}
+            </Text>
+            <Card style={styles.card}>
+              <View style={styles.profileHeader}>
+                <View style={styles.avatarBox}>
+                  <User size={24} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.profileName}>
+                    {profile.fullName || authUser?.full_name || 'Member'}
+                  </Text>
+                  <Text style={styles.profileDetails}>
+                    {isDemoMode
+                      ? 'Sample data stored locally only'
+                      : authUser?.email || ''}
+                    {profile.initialized
+                      ? ` • ${profile.age} yrs • ${profile.heightCm} cm • ${profile.weightKg} kg`
+                      : ' • Profile setup pending'}
+                  </Text>
+                </View>
+                <Badge
+                  label={isDemoMode ? 'Demo' : profile.pcosStatus}
+                  variant={isDemoMode ? 'warning' : 'primary'}
+                  size="small"
+                />
+              </View>
 
-          <Button
-            title="Edit Profile Data"
-            variant="outline"
-            size="small"
-            onPress={() => navigation.navigate('Onboarding')}
-            style={{ marginTop: 10 }}
-          />
-        </Card>
+              <Button
+                title="Edit Health Profile"
+                variant="outline"
+                size="small"
+                onPress={() => navigation.navigate('Onboarding')}
+                style={{ marginTop: 10 }}
+              />
+
+              <Button
+                title={isDemoMode ? 'Exit Demo & Sign In' : 'Sign Out'}
+                icon={LogOut}
+                variant="secondary"
+                size="small"
+                onPress={logout}
+                style={{ marginTop: 8 }}
+              />
+            </Card>
+          </>
+        )}
 
         {/* Backend & PostgreSQL Status */}
         <Text style={styles.sectionTitle}>FastAPI & PostgreSQL Backend</Text>

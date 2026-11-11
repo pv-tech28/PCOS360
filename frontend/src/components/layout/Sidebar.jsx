@@ -26,6 +26,9 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     setActiveScreen,
     careGaps,
     profile,
+    authUser,
+    isDemoMode,
+    logout,
     setIsOnboardingOpen,
     setIsAuthModalOpen,
     isUserLoggedIn
@@ -144,20 +147,26 @@ export default function Sidebar({ isOpen, setIsOpen }) {
               title="Click to view or edit health profile"
             >
               <div className="w-9 h-9 rounded-full bg-[#EDE5F7] flex items-center justify-center font-bold text-sm text-[#7950A8] border border-[#DFCDEE] shrink-0">
-                {profile.name ? profile.name.charAt(0) : 'A'}
+                {(profile.name || authUser?.full_name || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-[#292431] truncate">{profile.name}</p>
+                <p className="text-xs font-semibold text-[#292431] truncate">
+                  {profile.name || authUser?.full_name || 'Member'}
+                </p>
                 <p className="text-[10px] text-[#77717F] truncate">
-                  {profile.pcosStatus} • {profile.age} yrs
+                  {isDemoMode
+                    ? 'Demo Sample (Local Only)'
+                    : profile.initialized
+                    ? `${profile.pcosStatus} • ${profile.age} yrs`
+                    : authUser?.email || 'Profile setup pending'}
                 </p>
               </div>
             </div>
 
             <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="p-1.5 rounded-lg text-[#77717F] hover:text-[#7950A8] hover:bg-[#EDE5F7]/50"
-              title={isUserLoggedIn ? "Account Switch / Sign Out" : "Sign In"}
+              onClick={() => (isUserLoggedIn ? logout() : setIsAuthModalOpen(true))}
+              className="p-1.5 rounded-lg text-[#77717F] hover:text-[#7950A8] hover:bg-[#EDE5F7]/50 cursor-pointer"
+              title={isUserLoggedIn ? 'Sign Out' : 'Sign In / Switch Account'}
             >
               <LogOut className="w-4 h-4" />
             </button>

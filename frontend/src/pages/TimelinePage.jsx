@@ -170,6 +170,15 @@ export default function TimelinePage() {
       </div>
 
       {/* Vertical Timeline Stream matching Mockup Screen 9 */}
+      {filteredTimeline.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#EFEAF4] p-8 text-center space-y-2 shadow-xs">
+          <Clock className="w-7 h-7 text-[#7950A8] mx-auto" />
+          <h3 className="text-sm font-bold text-[#292431]">No timeline events recorded yet</h3>
+          <p className="text-xs text-[#77717F] max-w-md mx-auto">
+            Log daily symptoms, cycles, lab panels, or custom milestones to build your longitudinal health history.
+          </p>
+        </div>
+      ) : (
       <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:left-3 sm:before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-[#EFEAF4]">
         {filteredTimeline.map((item, idx) => {
           let Icon = Heart;
@@ -212,6 +221,7 @@ export default function TimelinePage() {
           );
         })}
       </div>
+      )}
 
       <EthicalDisclaimer title="Longitudinal Records Integrity">
         Continuous longitudinal records provide your gynecologist and endocrinologist with objective context, reducing diagnostic delays and avoiding duplicate laboratory testing.

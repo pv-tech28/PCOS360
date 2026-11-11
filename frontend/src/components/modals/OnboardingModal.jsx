@@ -1,23 +1,43 @@
-import React, { useState } from 'react';
-import { X, Check, ArrowRight, ArrowLeft, User, Heart, Pill, Calendar, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useHealth } from '../../context/HealthContext';
 
 export default function OnboardingModal() {
-  const { isOnboardingOpen, setIsOnboardingOpen, profile, updateProfile } = useHealth();
+  const { isOnboardingOpen, setIsOnboardingOpen, profile, authUser, updateProfile } = useHealth();
 
   const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
-    name: profile.name || 'Ananya Sharma',
-    age: profile.age || 23,
-    heightCm: profile.heightCm || 160,
-    weightKg: profile.weightKg || 65,
-    pcosStatus: profile.pcosStatus || 'Diagnosed',
-    diagnosisYear: profile.diagnosisYear || 2023,
-    medicalConditions: profile.medicalConditions || ['Insulin Resistance'],
-    medications: profile.medications || ['Myo-Inositol & D-Chiro Inositol (40:1)'],
+    name: profile.name || authUser?.full_name || '',
+    age: profile.age || 25,
+    heightCm: profile.heightCm || 162,
+    weightKg: profile.weightKg || 60,
+    pcosStatus: profile.pcosStatus || 'Unsure',
+    diagnosisYear: profile.diagnosisYear || new Date().getFullYear(),
+    medicalConditions: profile.medicalConditions || [],
+    medications: profile.medications || [],
   });
 
-  const bmi = (formData.weightKg / Math.pow(formData.heightCm / 100, 2)).toFixed(1);
+  useEffect(() => {
+    if (isOnboardingOpen) {
+      setErrorMsg('');
+      setStep(1);
+      setFormData({
+        name: profile.name || authUser?.full_name || '',
+        age: profile.age || 25,
+        heightCm: profile.heightCm || 162,
+        weightKg: profile.weightKg || 60,
+        pcosStatus: profile.pcosStatus || 'Unsure',
+        diagnosisYear: profile.diagnosisYear || new Date().getFullYear(),
+        medicalConditions: profile.medicalConditions || [],
+        medications: profile.medications || [],
+      });
+    }
+  }, [isOnboardingOpen, profile, authUser]);
+
+  const safeHeight = formData.heightCm > 0 ? formData.heightCm : 162;
+  const bmi = (formData.weightKg / Math.pow(safeHeight / 100, 2)).toFixed(1);
 
   const conditionOptions = [
     'Insulin Resistance',
@@ -49,13 +69,36 @@ export default function OnboardingModal() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    setErrorMsg('');
+    if (step === 1) {
+      if (!formData.age || formData.age < 10 || formData.age > 100) {
+        setErrorMsg('Please enter an age between 10 and 100.');
+        return;
+      }
+      if (!formData.heightCm || formData.heightCm < 50 || formData.heightCm > 250) {
+        setErrorMsg('Please enter a height between 50 and 250 cm.');
+        return;
+      }
+      if (!formData.weightKg || formData.weightKg < 20 || formData.weightKg > 300) {
+        setErrorMsg('Please enter a weight between 20 and 300 kg.');
+        return;
+      }
+    }
+
     if (step < 3) {
       setStep(step + 1);
-    } else {
-      updateProfile(formData);
+      return;
+    }
+
+    setSaving(true);
+    const result = await updateProfile(formData);
+    setSaving(false);
+    if (result?.ok) {
       setIsOnboardingOpen(false);
       setStep(1);
+    } else {
+      setErrorMsg(result?.error || 'Could not save profile. Check connection and try again.');
     }
   };
 
@@ -144,7 +187,10 @@ export default function OnboardingModal() {
                   min="13"
                   max="65"
                   value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 20 })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, age: val === '' ? '' : parseInt(val, 10) });
+                  }}
                   className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
                 />
               </div>
@@ -157,7 +203,10 @@ export default function OnboardingModal() {
                     min="120"
                     max="220"
                     value={formData.heightCm}
-                    onChange={(e) => setFormData({ ...formData, heightCm: parseInt(e.target.value) || 160 })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, heightCm: val === '' ? '' : parseFloat(val) });
+                    }}
                     className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
                   />
                 </div>
@@ -168,7 +217,10 @@ export default function OnboardingModal() {
                     min="30"
                     max="200"
                     value={formData.weightKg}
-                    onChange={(e) => setFormData({ ...formData, weightKg: parseFloat(e.target.value) || 60 })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, weightKg: val === '' ? '' : parseFloat(val) });
+                    }}
                     className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
                   />
                 </div>
@@ -243,7 +295,10 @@ export default function OnboardingModal() {
                     min="1990"
                     max="2026"
                     value={formData.diagnosisYear}
-                    onChange={(e) => setFormData({ ...formData, diagnosisYear: parseInt(e.target.value) || 2023 })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, diagnosisYear: val === '' ? '' : parseInt(val, 10) });
+                    }}
                     className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
                     placeholder="e.g. 2023"
                   />
@@ -311,14 +366,20 @@ export default function OnboardingModal() {
         </div>
 
         {/* Footer Actions */}
+        {errorMsg && (
+          <div className="mx-6 mb-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            {errorMsg}
+          </div>
+        )}
         <div className="p-6 border-t border-[#FAF9FC] bg-gradient-to-t from-[#FAF9FC] to-white flex items-center justify-between">
           <span className="text-xs text-[#77717F]">Step {step} of 3</span>
           <button
             type="button"
+            disabled={saving}
             onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs sm:text-sm font-semibold hover:bg-[#694195] transition-all shadow-xs"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs sm:text-sm font-semibold hover:bg-[#694195] disabled:opacity-60 transition-all shadow-xs cursor-pointer"
           >
-            <span>{step === 3 ? 'Save Profile' : 'Continue'}</span>
+            <span>{saving ? 'Saving...' : step === 3 ? 'Save Profile' : 'Continue'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

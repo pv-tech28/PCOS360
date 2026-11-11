@@ -1,14 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Sparkles } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import colors from '../../theme/colors';
-import typography from '../../theme/typography';
 import Button from '../../components/common/Button';
-
-const { width } = Dimensions.get('window');
+import { useHealth } from '../../context/HealthContext';
 
 export default function WelcomeScreen({ navigation }) {
+  const { enterDemoMode } = useHealth();
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -47,19 +46,19 @@ export default function WelcomeScreen({ navigation }) {
         {/* Bottom Actions */}
         <View style={styles.bottomArea}>
           <Button
-            title="Get Started"
+            title="Sign In / Create Account"
             icon={ArrowRight}
             iconPosition="right"
             size="large"
-            onPress={() => navigation.navigate('Onboarding')}
+            onPress={() => navigation.navigate('Auth', { mode: 'login' })}
             style={styles.getStartedButton}
           />
 
           <Pressable
-            onPress={() => navigation.navigate('MainTabs')}
+            onPress={enterDemoMode}
             style={styles.skipButton}
           >
-            <Text style={styles.skipText}>Explore Demo Directly</Text>
+            <Text style={styles.skipText}>Try Sample Demo (Local Preview Only)</Text>
           </Pressable>
         </View>
       </View>

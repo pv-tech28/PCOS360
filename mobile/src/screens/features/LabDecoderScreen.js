@@ -31,11 +31,8 @@ export default function LabDecoderScreen({ navigation }) {
   const [isUploading, setIsUploading] = useState(false);
 
   // Latest Report
-  const latestReport = labReports[0] || {
-    filename: 'Report_Jan2025.pdf',
-    date: '2025-01-26',
-    tests: [],
-  };
+  const latestReport = labReports[0] || null;
+  const flaggedMarker = latestReport?.tests?.find((t) => t.status !== 'Normal') || null;
 
   const handlePickDocument = async () => {
     try {
@@ -47,11 +44,11 @@ export default function LabDecoderScreen({ navigation }) {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
-        // Simulate extraction of lab markers
+        // Pre-fill sample placeholder values until real server-side OCR is enabled
         setTimeout(async () => {
-          await addLabReport({
+          const res = await addLabReport({
             filename: file.name,
-            labName: 'Uploaded Document',
+            labName: 'Sample Preview Panel',
             date: new Date().toISOString().split('T')[0],
             tests: [
               {
@@ -60,7 +57,7 @@ export default function LabDecoderScreen({ navigation }) {
                 unit: '%',
                 normalRange: '< 5.7',
                 status: 'Borderline',
-                interpretation: 'Slightly above ideal range. Consider discussing with your doctor.',
+                interpretation: 'Informational (not diagnostic): Sample preview value above <5.7% reference cutoff. Discuss real lab results with your doctor.',
               },
               {
                 name: 'Fasting Blood Glucose',
@@ -68,7 +65,7 @@ export default function LabDecoderScreen({ navigation }) {
                 unit: 'mg/dL',
                 normalRange: '70 - 99',
                 status: 'Normal',
-                interpretation: 'Within normal limits.',
+                interpretation: 'Informational (not diagnostic): Within reference limits.',
               },
               {
                 name: 'Total Testosterone',
@@ -76,13 +73,20 @@ export default function LabDecoderScreen({ navigation }) {
                 unit: 'ng/dL',
                 normalRange: '15 - 45',
                 status: 'Elevated',
-                interpretation: 'Mild hyperandrogenism.',
+                interpretation: 'Informational (not diagnostic): Sample preview value above 15 - 45 ng/dL reference range; consult a clinician.',
               },
             ],
           });
           setIsUploading(false);
-          Alert.alert('Report Decoded', `${file.name} successfully analyzed!`);
-        }, 1200);
+          if (res?.ok) {
+            Alert.alert(
+              'Sample Preview Saved',
+              `${file.name} attached with sample preview biomarkers (informational only, not diagnostic — real server-side OCR is not yet active).`
+            );
+          } else {
+            Alert.alert('Save Failed', res?.error || 'Could not save lab report to your account.');
+          }
+        }, 800);
       } else {
         setIsUploading(false);
       }
@@ -112,15 +116,15 @@ export default function LabDecoderScreen({ navigation }) {
           {isUploading ? (
             <View style={styles.uploadingContainer}>
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.uploadTitle}>AI Extracting Biomarkers...</Text>
+              <Text style={styles.uploadTitle}>Loading Sample Biomarker Preview...</Text>
             </View>
           ) : (
             <>
               <View style={styles.uploadIconCircle}>
                 <UploadCloud size={24} color={colors.primary} />
               </View>
-              <Text style={styles.uploadTitle}>Upload Lab Report</Text>
-              <Text style={styles.uploadSubtitle}>(PDF / Image)</Text>
+              <Text style={styles.uploadTitle}>Attach Lab Report (Sample Preview)</Text>
+              <Text style={styles.uploadSubtitle}>PDF / Image • Informational Only (Not Diagnostic)</Text>
             </>
           )}
         </Pressable>
@@ -128,46 +132,59 @@ export default function LabDecoderScreen({ navigation }) {
         {/* Last Analysis Section Header */}
         <Text style={styles.sectionTitle}>Last Analysis</Text>
 
-        {/* Report File Card (Mockup Match) */}
-        <Card style={styles.reportCard}>
-          <View style={styles.reportRow}>
-            <View style={styles.reportLeft}>
-              <View style={styles.fileIconBox}>
-                <FileText size={20} color={colors.primary} />
+        {!latestReport ? (
+          <Card style={styles.reportCard}>
+            <Text style={styles.fileName}>No lab reports uploaded yet</Text>
+            <Text style={styles.fileDate}>
+              Upload a report above to store extracted biomarkers in your account.
+            </Text>
+          </Card>
+        ) : (
+          <>
+            {/* Report File Card */}
+            <Card style={styles.reportCard}>
+              <View style={styles.reportRow}>
+                <View style={styles.reportLeft}>
+                  <View style={styles.fileIconBox}>
+                    <FileText size={20} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.fileName}>{latestReport.displayName || latestReport.filename}</Text>
+                    <Text style={styles.fileDate}>Analyzed on {latestReport.date}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.checkBadge}>
+                  <CheckCircle2 size={20} color="#10B981" />
+                </View>
               </View>
-              <View>
-                <Text style={styles.fileName}>{latestReport.displayName || latestReport.filename}</Text>
-                <Text style={styles.fileDate}>Analyzed on 26 Jan</Text>
-              </View>
-            </View>
+            </Card>
 
-            <View style={styles.checkBadge}>
-              <CheckCircle2 size={20} color="#10B981" />
-            </View>
-          </View>
-        </Card>
+            {/* Highlighted Biomarker Card */}
+            {flaggedMarker && (
+              <Card style={styles.biomarkerHighlightCard}>
+                <View style={styles.highlightHeader}>
+                  <View style={styles.highlightTitleRow}>
+                    <AlertTriangle size={18} color="#D97706" />
+                    <Text style={styles.highlightName}>
+                      {flaggedMarker.name}: {flaggedMarker.value} {flaggedMarker.unit}
+                    </Text>
+                  </View>
+                  <Badge label={flaggedMarker.status} variant="borderline" size="small" />
+                </View>
 
-        {/* Highlighted Biomarker Card (Mockup Match: HbA1c 5.8% Borderline) */}
-        <Card style={styles.biomarkerHighlightCard}>
-          <View style={styles.highlightHeader}>
-            <View style={styles.highlightTitleRow}>
-              <AlertTriangle size={18} color="#D97706" />
-              <Text style={styles.highlightName}>HbA1c: 5.8%</Text>
-            </View>
-            <Badge label="Borderline >" variant="borderline" size="small" />
-          </View>
+                <Text style={styles.highlightInterpretation}>
+                  Informational Only (Not Diagnostic): {flaggedMarker.interpretation}
+                </Text>
+              </Card>
+            )}
 
-          <Text style={styles.highlightInterpretation}>
-            Slightly above ideal range. Consider discussing with your doctor.
-          </Text>
-        </Card>
+            {/* All Extracted Biomarkers List */}
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>
+              Biomarker Breakdown ({latestReport.tests ? latestReport.tests.length : 0}) • Informational Only
+            </Text>
 
-        {/* All Extracted Biomarkers List */}
-        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>
-          Extracted Biomarkers ({latestReport.tests ? latestReport.tests.length : 0})
-        </Text>
-
-        {(latestReport.tests || []).map((test, idx) => {
+            {(latestReport.tests || []).map((test, idx) => {
           const isBorderline = test.status === 'Borderline';
           const isElevated = test.status === 'Elevated';
           const isNormal = test.status === 'Normal';
@@ -204,12 +221,14 @@ export default function LabDecoderScreen({ navigation }) {
             </Card>
           );
         })}
+          </>
+        )}
 
         {/* Safety Disclaimer */}
         <View style={styles.disclaimerBox}>
           <ShieldCheck size={16} color={colors.primary} />
           <Text style={styles.disclaimerText}>
-            Lab decoder uses OCR pattern recognition. Always present original official laboratory prints to your clinician.
+            Informational Only — Not Diagnostic: Uploading a document currently loads sample preview biomarkers (server-side OCR is not yet active). Always rely on official lab reports and licensed clinicians for diagnosis.
           </Text>
         </View>
       </ScrollView>

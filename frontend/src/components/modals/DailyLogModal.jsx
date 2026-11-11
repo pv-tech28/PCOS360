@@ -26,6 +26,8 @@ export default function DailyLogModal() {
   ];
 
   const [selectedSymptoms, setSelectedSymptoms] = useState(['Mild Fatigue', 'Bloating / Water Retention']);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const toggleSymptom = (sym) => {
     if (selectedSymptoms.includes(sym)) {
@@ -35,9 +37,11 @@ export default function DailyLogModal() {
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    addDailyLog({
+    setErrorMsg('');
+    setSaving(true);
+    const res = await addDailyLog({
       sleepHours,
       stressLevel,
       energyLevel,
@@ -46,7 +50,12 @@ export default function DailyLogModal() {
       symptoms: selectedSymptoms,
       notes
     });
-    setIsLogModalOpen(false);
+    setSaving(false);
+    if (res?.ok) {
+      setIsLogModalOpen(false);
+    } else {
+      setErrorMsg(res?.error || 'Could not save daily log.');
+    }
   };
 
   if (!isLogModalOpen) return null;
@@ -209,6 +218,11 @@ export default function DailyLogModal() {
           </div>
 
           {/* Submit Action */}
+          {errorMsg && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+              {errorMsg}
+            </div>
+          )}
           <div className="pt-2 flex items-center justify-end gap-3">
             <button
               type="button"
@@ -219,9 +233,10 @@ export default function DailyLogModal() {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] transition-all shadow-xs"
+              disabled={saving}
+              className="px-6 py-2 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] disabled:opacity-60 transition-all shadow-xs cursor-pointer"
             >
-              Save Today's Log
+              {saving ? 'Saving...' : "Save Today's Log"}
             </button>
           </div>
         </form>

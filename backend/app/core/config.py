@@ -1,7 +1,11 @@
 import json
+import secrets
+import warnings
 from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_EPHEMERAL_DEV_SECRET = secrets.token_urlsafe(48)
 
 
 class Settings(BaseSettings):
@@ -16,15 +20,51 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
+    # Authentication & Token Signing
+    SECRET_KEY: str = ""
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Auth Rate Limiting & Proxy Configuration
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 300
+    AUTH_LOGIN_MAX_ATTEMPTS: int = 5
+    AUTH_LOGIN_IP_MAX_ATTEMPTS: int = 20
+    AUTH_REGISTER_MAX_ATTEMPTS: int = 10
+    TRUST_PROXY_HEADERS: bool = False
+
     # PostgreSQL Database URL
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/pcos360_db"
 
-    # CORS origins: allowed to connect from the React + Vite frontend
+    # CORS origins: allowed to connect from the React + Vite frontend and Expo web/dev tools
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
+        "http://localhost:8081",
     ]
+
+    @field_validator("SECRET_KEY", mode="after")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        cleaned = (v or "").strip()
+        if not cleaned:
+            if env == "development":
+                warnings.warn(
+                    "SECRET_KEY is not set in backend/.env; using an ephemeral process secret. "
+                    "Set a fixed >=32-char SECRET_KEY in backend/.env for persistent local sessions.",
+                    stacklevel=2,
+                )
+                return _EPHEMERAL_DEV_SECRET
+            raise ValueError("SECRET_KEY must be configured via environment in non-development environments.")
+        if len(cleaned) < 32 or "change-me" in cleaned.lower():
+            if env == "development":
+                warnings.warn(
+                    "SECRET_KEY is weak or a placeholder; generate at least 32 random characters.",
+                    stacklevel=2,
+                )
+                return cleaned
+            raise ValueError("SECRET_KEY must be at least 32 random characters in non-development environments.")
+        return cleaned
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod

@@ -1,120 +1,238 @@
 import React, { useState } from 'react';
-import { X, ArrowRight, Sparkles, Mail, Lock, UserCheck, Shield } from 'lucide-react';
+import {
+  X,
+  ArrowRight,
+  Mail,
+  Lock,
+  User,
+  UserCheck,
+  Shield,
+  AlertCircle,
+  Loader2,
+  WifiOff,
+} from 'lucide-react';
 import Logo from '../common/Logo';
 import { useHealth } from '../../context/HealthContext';
 
-export default function AuthModal() {
-  const { isAuthModalOpen, setIsAuthModalOpen, isUserLoggedIn, setIsUserLoggedIn } = useHealth();
+export function AuthFormCard({ isModal = false, onClose }) {
+  const { login, register, enterDemoMode, dbConnected, syncNotice } = useHealth();
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('ananya.sharma@example.com');
-  const [password, setPassword] = useState('••••••••••');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  if (!isAuthModalOpen) return null;
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsUserLoggedIn(true);
-    setIsAuthModalOpen(false);
+    setError('');
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    if (isRegister) {
+      const trimmedName = fullName.trim();
+      if (trimmedName.length < 2) {
+        setError('Please enter your full name (at least 2 characters).');
+        return;
+      }
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+        setError('Password must be at least 8 characters and include both a letter and a number.');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      if (isRegister) {
+        await register({ fullName: fullName.trim(), email: trimmedEmail, password });
+      } else {
+        await login({ email: trimmedEmail, password });
+      }
+      if (onClose) onClose();
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDemoLogin = () => {
-    setIsUserLoggedIn(true);
-    setIsAuthModalOpen(false);
+  const handleDemoEntry = () => {
+    setError('');
+    enterDemoMode();
+    if (onClose) onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#292431]/40 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-[0_25px_70px_rgba(41,36,49,0.25)] border border-[#EFEAF4] overflow-hidden relative">
+    <div className="bg-white rounded-3xl w-full max-w-md shadow-[0_25px_70px_rgba(41,36,49,0.20)] border border-[#EFEAF4] overflow-hidden relative">
+      {isModal && onClose && (
         <button
-          onClick={() => setIsAuthModalOpen(false)}
-          className="absolute top-5 right-5 p-1.5 rounded-full text-[#77717F] hover:bg-[#FAF9FC] z-10"
+          type="button"
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1.5 rounded-full text-[#77717F] hover:bg-[#FAF9FC] z-10 cursor-pointer"
+          aria-label="Close sign in dialog"
         >
           <X className="w-5 h-5" />
         </button>
+      )}
 
-        {/* Decorative soft pastel banner matching Screen 1 illustration */}
-        <div className="pt-8 pb-6 px-6 text-center bg-gradient-to-b from-[#FAF9FC] to-white relative overflow-hidden">
-          <div className="mx-auto flex justify-center mb-4">
-            <Logo size="lg" showTagline={true} />
+      {/* Header */}
+      <div className="pt-8 pb-5 px-6 text-center bg-gradient-to-b from-[#FAF9FC] to-white">
+        <div className="mx-auto flex justify-center mb-3">
+          <Logo size="lg" showTagline={true} />
+        </div>
+        <h2 className="text-lg font-bold text-[#292431]">
+          {isRegister ? 'Create Your Private Account' : 'Sign In to PCOS360'}
+        </h2>
+        <p className="text-xs text-[#77717F] max-w-xs mx-auto leading-relaxed mt-1">
+          Personal cycle tracking, symptom history, and biomarker insights isolated to your account.
+        </p>
+
+        {!dbConnected && (
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-800">
+            <WifiOff className="w-3.5 h-3.5" />
+            <span>Backend API offline — start FastAPI on port 8000 to sign in or register</span>
           </div>
+        )}
+      </div>
 
-          <p className="text-xs text-[#77717F] max-w-xs mx-auto leading-relaxed mt-2">
-            Your AI-powered companion for understanding, managing and exploring PCOS.
-          </p>
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+        {(error || (syncNotice && syncNotice.type !== 'success' && !isModal)) && (
+          <div
+            className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+              error || syncNotice?.type === 'error'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-[#FAF9FC] border-[#EFEAF4] text-[#553878]'
+            }`}
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error || syncNotice?.text}</span>
+          </div>
+        )}
+
+        {isRegister && (
+          <div>
+            <label className="block text-xs font-semibold text-[#292431] mb-1">Full Name</label>
+            <div className="relative">
+              <User className="w-4 h-4 text-[#9E98A8] absolute left-3.5 top-3" />
+              <input
+                type="text"
+                required
+                minLength={2}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+                autoComplete="name"
+                className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
+              />
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-semibold text-[#292431] mb-1">Email Address</label>
+          <div className="relative">
+            <Mail className="w-4 h-4 text-[#9E98A8] absolute left-3.5 top-3" />
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              autoComplete="email"
+              className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
+            />
+          </div>
         </div>
 
-        {/* Auth form */}
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-[#292431] mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-[#9E98A8] absolute left-3.5 top-3" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
-              />
-            </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#292431] mb-1">Password</label>
+          <div className="relative">
+            <Lock className="w-4 h-4 text-[#9E98A8] absolute left-3.5 top-3" />
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={isRegister ? 'At least 8 chars, letters + numbers' : 'Enter your password'}
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
+              className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
+            />
           </div>
+          {isRegister && (
+            <p className="text-[10px] text-[#77717F] mt-1">
+              Minimum 8 characters, including at least one letter and one number.
+            </p>
+          )}
+        </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-[#292431]">Password</label>
-              {!isRegister && (
-                <a href="#forgot" onClick={(e) => e.preventDefault()} className="text-[11px] text-[#7950A8] hover:underline">
-                  Forgot?
-                </a>
-              )}
-            </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-[#9E98A8] absolute left-3.5 top-3" />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-[#EFEAF4] focus:outline-none focus:border-[#7950A8]"
-              />
-            </div>
-          </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#7950A8] text-white text-xs sm:text-sm font-semibold hover:bg-[#694195] disabled:opacity-60 transition-all shadow-xs cursor-pointer"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{isRegister ? 'Creating Account...' : 'Signing In...'}</span>
+            </>
+          ) : (
+            <>
+              <span>{isRegister ? 'Create Account' : 'Sign In'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
 
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#7950A8] text-white text-xs sm:text-sm font-semibold hover:bg-[#694195] transition-all shadow-xs cursor-pointer"
-          >
-            <span>{isRegister ? 'Create Secure Account' : 'Sign In'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-
-          {/* Quick Demo Mode entry */}
+        <div className="text-center">
           <button
             type="button"
-            onClick={handleDemoLogin}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#EDE5F7] text-[#7950A8] text-xs font-semibold hover:bg-[#E3D6F2] transition-all border border-[#DFCDEE] cursor-pointer"
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError('');
+            }}
+            className="text-xs font-medium text-[#7950A8] hover:underline cursor-pointer"
+          >
+            {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
+          </button>
+        </div>
+
+        {/* Clearly Separated Local Demo Mode Option */}
+        <div className="pt-3 border-t border-[#F4EFFB] space-y-2">
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#9E98A8] text-center">
+            Offline Sample Preview
+          </p>
+          <button
+            type="button"
+            onClick={handleDemoEntry}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#FAF9FC] text-[#553878] text-xs font-semibold hover:bg-[#EDE5F7] transition-all border border-[#DFCDEE] cursor-pointer"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Continue as Ananya (Demo User)</span>
+            <span>Explore Sample Demo (Not Saved to Account)</span>
           </button>
+        </div>
 
-          <div className="pt-2 text-center">
-            <button
-              type="button"
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-xs text-[#77717F] hover:text-[#7950A8]"
-            >
-              {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register"}
-            </button>
-          </div>
+        <div className="pt-1 flex items-center justify-center gap-1.5 text-[10px] text-[#9E98A8]">
+          <Shield className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Salted Scrypt Password Hashing • Server-Tracked Sessions</span>
+        </div>
+      </form>
+    </div>
+  );
+}
 
-          <div className="pt-2 border-t border-[#FAF9FC] flex items-center justify-center gap-1.5 text-[10px] text-[#9E98A8]">
-            <Shield className="w-3.5 h-3.5 text-emerald-600" />
-            <span>End-to-End Encrypted Health Records</span>
-          </div>
-        </form>
-      </div>
+export default function AuthModal() {
+  const { isAuthModalOpen, setIsAuthModalOpen } = useHealth();
+  if (!isAuthModalOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#292431]/40 backdrop-blur-xs animate-in fade-in duration-150">
+      <AuthFormCard isModal={true} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   );
 }

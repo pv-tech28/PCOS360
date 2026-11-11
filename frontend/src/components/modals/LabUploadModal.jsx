@@ -9,17 +9,19 @@ export default function LabUploadModal() {
   const [step, setStep] = useState('upload'); // 'upload' | 'processing' | 'verify'
   const [selectedFile, setSelectedFile] = useState(null);
   const [extractedData, setExtractedData] = useState([]);
-  const [reportDate, setReportDate] = useState('2025-02-01');
+  const [reportDate, setReportDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [labName, setLabName] = useState('MetroPath Diagnostics');
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Sample realistic extracted biomarkers
+  // Sample template biomarkers loaded for manual verification until real server-side OCR is implemented
   const defaultExtracted = [
-    { name: 'Fasting Blood Glucose', value: 94, unit: 'mg/dL', normalRange: '70 - 99', status: 'Normal', interpretation: 'Normal glucose levels.' },
-    { name: 'HbA1c', value: 5.7, unit: '%', normalRange: '< 5.7', status: 'Borderline', interpretation: 'At the upper boundary of normal. Suggests early insulin resistance monitoring.' },
-    { name: 'Fasting Insulin', value: 12.8, unit: 'μIU/mL', normalRange: '< 10.0', status: 'Borderline', interpretation: 'Mildly elevated fasting insulin.' },
-    { name: 'Total Cholesterol', value: 198, unit: 'mg/dL', normalRange: '< 200', status: 'Normal', interpretation: 'Within acceptable limits.' },
-    { name: 'Triglycerides', value: 158, unit: 'mg/dL', normalRange: '< 150', status: 'Borderline', interpretation: 'Mildly elevated.' },
-    { name: 'LH / FSH Ratio', value: 2.1, unit: 'Ratio', normalRange: '1.0 - 1.5', status: 'Elevated', interpretation: 'Characteristic LH dominant ratio in PCOS.' }
+    { name: 'Fasting Blood Glucose', value: 94, unit: 'mg/dL', normalRange: '70 - 99', status: 'Normal', interpretation: 'Informational (not diagnostic): Within reference fasting glucose range.' },
+    { name: 'HbA1c', value: 5.7, unit: '%', normalRange: '< 5.7', status: 'Borderline', interpretation: 'Informational (not diagnostic): At the upper reference boundary; review with your clinician.' },
+    { name: 'Fasting Insulin', value: 12.8, unit: 'μIU/mL', normalRange: '< 10.0', status: 'Borderline', interpretation: 'Informational (not diagnostic): Above <10.0 μIU/mL reference cutoff; discuss with your clinician.' },
+    { name: 'Total Cholesterol', value: 198, unit: 'mg/dL', normalRange: '< 200', status: 'Normal', interpretation: 'Informational (not diagnostic): Within reference limits.' },
+    { name: 'Triglycerides', value: 158, unit: 'mg/dL', normalRange: '< 150', status: 'Borderline', interpretation: 'Informational (not diagnostic): Above <150 mg/dL reference limit.' },
+    { name: 'LH / FSH Ratio', value: 2.1, unit: 'Ratio', normalRange: '1.0 - 1.5', status: 'Elevated', interpretation: 'Informational (not diagnostic): Above 1.0 - 1.5 reference ratio; interpret with clinical evaluation.' }
   ];
 
   const handleFileDrop = (e) => {
@@ -45,7 +47,9 @@ export default function LabUploadModal() {
     setExtractedData(updated);
   };
 
-  const handleSaveReport = () => {
+  const handleSaveReport = async () => {
+    setErrorMsg('');
+    setSaving(true);
     const newReport = {
       id: `rep-${Date.now()}`,
       filename: selectedFile ? selectedFile.name : 'Uploaded_Lab_Report.pdf',
@@ -55,10 +59,15 @@ export default function LabUploadModal() {
       verified: true,
       tests: extractedData
     };
-    addLabReport(newReport);
-    setIsLabUploadModalOpen(false);
-    setStep('upload');
-    setSelectedFile(null);
+    const res = await addLabReport(newReport);
+    setSaving(false);
+    if (res?.ok) {
+      setIsLabUploadModalOpen(false);
+      setStep('upload');
+      setSelectedFile(null);
+    } else {
+      setErrorMsg(res?.error || 'Could not save lab report.');
+    }
   };
 
   if (!isLabUploadModalOpen) return null;
@@ -136,23 +145,23 @@ export default function LabUploadModal() {
                 <Loader2 className="w-8 h-8 animate-spin" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-[#292431]">Analyzing Laboratory Document...</h3>
+                <h3 className="text-base font-bold text-[#292431]">Preparing Lab Entry Worksheet...</h3>
                 <p className="text-xs text-[#77717F] mt-1 max-w-sm mx-auto">
-                  Extracting biomarker names, test values, measurement units and matching laboratory reference bounds.
+                  Loading editable sample biomarker fields so you can enter your exact lab report values. Server-side PDF/image OCR is not enabled yet.
                 </p>
               </div>
               <div className="max-w-xs mx-auto space-y-2 text-left text-xs text-[#77717F] pt-2">
                 <div className="flex items-center gap-2 text-emerald-700">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Document parsed successfully</span>
+                  <span>File metadata attached locally</span>
                 </div>
                 <div className="flex items-center gap-2 text-emerald-700">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>6 Clinical biomarkers identified</span>
+                  <span>6 Editable biomarker rows loaded</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#7950A8]">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Calibrating reference intervals</span>
+                  <span>Ready for manual value verification</span>
                 </div>
               </div>
             </div>
@@ -223,8 +232,8 @@ export default function LabUploadModal() {
                 ))}
               </div>
 
-              <EthicalDisclaimer title="Clinical Verification">
-                AI optical character extraction is assistive. Always double-check parsed values with the official paper or PDF report before relying on historical trends.
+              <EthicalDisclaimer title="Informational Only — Verify Before Saving">
+                Server-side lab OCR is not yet active; the rows above are pre-filled template values that you must update to match your official paper or PDF lab report. Reference comparisons are informational only and not diagnostic.
               </EthicalDisclaimer>
             </div>
           )}
@@ -232,21 +241,29 @@ export default function LabUploadModal() {
 
         {/* Footer */}
         {step === 'verify' && (
-          <div className="p-5 border-t border-[#FAF9FC] flex items-center justify-end gap-3 bg-white">
-            <button
-              type="button"
-              onClick={() => setStep('upload')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-[#77717F] hover:bg-[#FAF9FC]"
-            >
-              Re-upload
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveReport}
-              className="px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] transition-all shadow-xs"
-            >
-              Confirm & Save Biomarkers
-            </button>
+          <div className="p-5 border-t border-[#FAF9FC] space-y-2 bg-white">
+            {errorMsg && (
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                {errorMsg}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStep('upload')}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#77717F] hover:bg-[#FAF9FC]"
+              >
+                Re-upload
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSaveReport}
+                className="px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] disabled:opacity-60 transition-all shadow-xs cursor-pointer"
+              >
+                {saving ? 'Saving...' : 'Confirm & Save Biomarkers'}
+              </button>
+            </div>
           </div>
         )}
       </div>

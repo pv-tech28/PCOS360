@@ -32,7 +32,7 @@ export default function DailyLogModalScreen({ navigation }) {
 
   const handleSave = async () => {
     setIsSubmitting(true);
-    await addDailyLog({
+    const res = await addDailyLog({
       fatigueLevel,
       acneSeverity,
       bloating,
@@ -42,8 +42,17 @@ export default function DailyLogModalScreen({ navigation }) {
       notes,
     });
     setIsSubmitting(false);
-    Alert.alert('Logged Successfully', 'Your daily symptoms have been recorded!');
-    navigation.goBack();
+    if (res?.ok) {
+      Alert.alert(
+        res.demo ? 'Saved Locally (Demo)' : 'Logged Successfully',
+        res.demo
+          ? 'Recorded in local Demo Mode only.'
+          : 'Your daily symptoms and sleep log have been saved to your account.'
+      );
+      navigation.goBack();
+    } else {
+      Alert.alert('Sync Failed', res?.error || 'Could not save daily log to backend.');
+    }
   };
 
   const renderRatingRow = (label, value, setValue, max = 5) => {

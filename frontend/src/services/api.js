@@ -1,63 +1,185 @@
-// PCOS360 API Service - Communicates with FastAPI backend on http://localhost:8000
+// PCOS360 API Service - Authenticated FastAPI client
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const AUTH_TOKEN_KEY = 'pcos360_auth_token_v1';
+
+let unauthorizedHandler = null;
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token) {
+  try {
+    if (token) {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch {
+    // Ignore storage quota / privacy mode failures gracefully
+  }
+}
+
+export function clearAuthToken() {
+  setAuthToken(null);
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = typeof handler === 'function' ? handler : null;
+}
+
+function formatErrorDetail(detail, fallbackText) {
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((item) => {
+        const loc = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : '';
+        const msg = item.msg || 'Invalid value';
+        return loc ? `${loc}: ${msg}` : msg;
+      })
+      .join('; ');
+  }
+  return fallbackText;
+}
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const { skipAuth = false, headers: customHeaders = {}, ...fetchOptions } = options;
+  const token = skipAuth ? null : getAuthToken();
+
   const defaultHeaders = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+  if (token) {
+    defaultHeaders.Authorization = `Bearer ${token}`;
+  }
 
   try {
     const response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       headers: {
         ...defaultHeaders,
-        ...(options.headers || {}),
+        ...customHeaders,
       },
     });
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
-      const error = new Error(errorBody.detail || `HTTP Error ${response.status}: ${response.statusText}`);
+      const message = formatErrorDetail(
+        errorBody.detail,
+        `HTTP Error ${response.status}: ${response.statusText}`
+      );
+      const error = new Error(message);
       error.status = response.status;
       error.detail = errorBody.detail;
+
+      if (response.status === 401 && !skipAuth) {
+        clearAuthToken();
+        if (unauthorizedHandler) {
+          unauthorizedHandler(error);
+        }
+      }
+
       throw error;
     }
 
+    if (response.status === 204) {
+      return null;
+    }
     return await response.json();
   } catch (err) {
-    // Return or rethrow with structured info
     if (err.status) throw err;
-    const networkError = new Error(`Cannot connect to backend service at ${API_BASE_URL}`);
+    const networkError = new Error(`Offline or backend unreachable at ${API_BASE_URL}`);
     networkError.isNetworkError = true;
     throw networkError;
   }
 }
 
 export const apiClient = {
-  // Base Health
+  baseUrl: API_BASE_URL,
+
+  // Base Health (public)
   async checkHealth() {
     try {
-      return await request('/api/health');
+      return await request('/api/health', { skipAuth: true });
     } catch {
       return null;
     }
   },
 
-  // Health Profile
-  async getProfile(userId = 1) {
+  // Authentication & Session
+  async register({ fullName, email, password }) {
+    const data = await request('/api/auth/register', {
+      method: 'POST',
+      skipAuth: true,
+      body: JSON.stringify({
+        full_name: fullName,
+        email,
+        password,
+      }),
+    });
+    if (data?.access_token) {
+      setAuthToken(data.access_token);
+    }
+    return data;
+  },
+
+  async login({ email, password }) {
+    const data = await request('/api/auth/login', {
+      method: 'POST',
+      skipAuth: true,
+      body: JSON.stringify({ email, password }),
+    });
+    if (data?.access_token) {
+      setAuthToken(data.access_token);
+    }
+    return data;
+  },
+
+  async logout() {
+    const token = getAuthToken();
     try {
-      return await request(`/api/profile/${userId}`);
+      if (token) {
+        await request('/api/auth/logout', { method: 'POST' });
+      }
+    } catch {
+      // Ignore network/already-expired errors when signing out locally
+    } finally {
+      clearAuthToken();
+    }
+  },
+
+  async getMe() {
+    return await request('/api/auth/me');
+  },
+
+  async updateMe({ fullName }) {
+    return await request('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ full_name: fullName }),
+    });
+  },
+
+  // Health Profile (derived strictly from authenticated session)
+  async getProfile() {
+    try {
+      return await request('/api/profile/me');
     } catch (err) {
       if (err.status === 404) return null;
       throw err;
     }
   },
 
-  async updateProfile(userId = 1, profileData) {
-    return await request(`/api/profile/${userId}`, {
+  async updateProfile(profileData) {
+    return await request('/api/profile/me', {
       method: 'PUT',
       body: JSON.stringify(profileData),
     });
@@ -71,19 +193,14 @@ export const apiClient = {
   },
 
   // Menstrual Cycles
-  async getCycles(userId = 1) {
-    try {
-      return await request(`/api/cycles/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch cycles from backend:', err.message);
-      return [];
-    }
+  async getCycles() {
+    return await request('/api/cycles/');
   },
 
   async createCycle(cycleData) {
     return await request('/api/cycles/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...cycleData }),
+      body: JSON.stringify(cycleData),
     });
   },
 
@@ -94,19 +211,14 @@ export const apiClient = {
   },
 
   // Daily Symptoms
-  async getSymptoms(userId = 1) {
-    try {
-      return await request(`/api/symptoms/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch symptoms from backend:', err.message);
-      return [];
-    }
+  async getSymptoms() {
+    return await request('/api/symptoms/');
   },
 
   async createSymptom(symptomData) {
     return await request('/api/symptoms/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...symptomData }),
+      body: JSON.stringify(symptomData),
     });
   },
 
@@ -124,36 +236,26 @@ export const apiClient = {
   },
 
   // Lifestyle Logs
-  async getLifestyle(userId = 1) {
-    try {
-      return await request(`/api/lifestyle/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch lifestyle logs from backend:', err.message);
-      return [];
-    }
+  async getLifestyle() {
+    return await request('/api/lifestyle/');
   },
 
   async createLifestyle(lifestyleData) {
     return await request('/api/lifestyle/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...lifestyleData }),
+      body: JSON.stringify(lifestyleData),
     });
   },
 
   // Lab Reports
-  async getLabReports(userId = 1) {
-    try {
-      return await request(`/api/lab-reports/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch lab reports from backend:', err.message);
-      return [];
-    }
+  async getLabReports() {
+    return await request('/api/lab-reports/');
   },
 
   async createLabReport(reportData) {
     return await request('/api/lab-reports/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...reportData }),
+      body: JSON.stringify(reportData),
     });
   },
 
@@ -164,19 +266,14 @@ export const apiClient = {
   },
 
   // Clinical Records
-  async getClinicalRecords(userId = 1) {
-    try {
-      return await request(`/api/clinical-records/${userId}`);
-    } catch (err) {
-      console.warn('Could not fetch clinical records from backend:', err.message);
-      return [];
-    }
+  async getClinicalRecords() {
+    return await request('/api/clinical-records/');
   },
 
   async createClinicalRecord(recordData) {
     return await request('/api/clinical-records/', {
       method: 'POST',
-      body: JSON.stringify({ user_id: 1, ...recordData }),
+      body: JSON.stringify(recordData),
     });
   },
 };

@@ -1,5 +1,12 @@
 from app.schemas.health import RootResponse, HealthResponse
-from app.schemas.user import UserBase, UserCreate, UserResponse
+from app.schemas.user import (
+    AuthTokenResponse,
+    UserBase,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+    UserUpdate,
+)
 from app.schemas.health_profile import (
     HealthProfileBase,
     HealthProfileCreate,
@@ -37,8 +44,11 @@ __all__ = [
     "RootResponse",
     "HealthResponse",
     "UserBase",
-    "UserCreate",
+    "UserRegister",
+    "UserLogin",
+    "UserUpdate",
     "UserResponse",
+    "AuthTokenResponse",
     "HealthProfileBase",
     "HealthProfileCreate",
     "HealthProfileUpdate",

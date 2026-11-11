@@ -21,11 +21,16 @@ export default function ConsultationCopilotPage() {
   const { profile, cycleData, labReports } = useHealth();
   const [doctorType, setDoctorType] = useState('Gynecologist'); // 'Gynecologist' | 'Endocrinologist' | 'Nutritionist'
   const [customQuestion, setCustomQuestion] = useState('');
+  const latestReport = labReports?.[0] || null;
+  const hasBiometrics = Number(profile.heightCm) > 0 && Number(profile.weightKg) > 0;
+  const computedBmi = hasBiometrics
+    ? (Number(profile.weightKg) / Math.pow(Number(profile.heightCm) / 100, 2)).toFixed(1)
+    : null;
   const [questions, setQuestions] = useState([
-    'Given my 35-day cycle average and LH:FSH ratio of 2.3, should we monitor progesterone in my luteal phase?',
-    'My latest HbA1c is 5.8% (borderline). Would you recommend testing fasting insulin or adjusting my inositol dose?',
-    'Are my symptoms of afternoon fatigue and mild cystic acne consistent with Phenotype B PCOS?',
-    'Should we schedule an updated pelvic ultrasound to evaluate ovarian follicle density?'
+    'Based on my cycle history and symptom log trends, are additional hormone or ovulation checks helpful right now?',
+    'Would you recommend evaluating fasting glucose, fasting insulin, or HbA1c at my next visit?',
+    'What lifestyle or evidence-based management options fit my symptoms and health goals best?',
+    'Is any follow-up imaging or laboratory monitoring needed before my next appointment?'
   ]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
@@ -88,9 +93,23 @@ export default function ConsultationCopilotPage() {
             {/* Checklist matching mockup Screen 7 */}
             <div className="space-y-3 pt-2">
               {[
-                { title: 'Your health summary', desc: `${profile.age} yrs, BMI ${(profile.weightKg / Math.pow(profile.heightCm / 100, 2)).toFixed(1)}, Diagnosed ${profile.diagnosisYear}` },
-                { title: 'Symptom timeline', desc: 'Last 90 days fatigue, acne, and cycle intervals' },
-                { title: 'Lab report highlights', desc: 'HbA1c 5.8%, LH:FSH 2.3, Testosterone 52 ng/dL' },
+                {
+                  title: 'Your health summary',
+                  desc: `${profile.age || 'N/A'} yrs${computedBmi ? `, BMI ${computedBmi}` : ''}, ${profile.pcosStatus || 'Unsure'}${profile.diagnosisYear ? ` (${profile.diagnosisYear})` : ''}`,
+                },
+                {
+                  title: 'Symptom & cycle timeline',
+                  desc: `Cycle day ${cycleData.currentDay || 1} of ${cycleData.totalDays || 28} (${cycleData.phase || 'Pending cycle log'})`,
+                },
+                {
+                  title: 'Lab report highlights (informational)',
+                  desc: latestReport?.tests?.length
+                    ? latestReport.tests
+                        .slice(0, 3)
+                        .map((t) => `${t.name} ${t.value} ${t.unit}`)
+                        .join(', ')
+                    : 'No lab biomarkers saved yet',
+                },
                 { title: 'Tailored questions to ask', desc: `${questions.length} questions prioritized for ${doctorType}` }
               ].map((item, idx) => (
                 <div key={idx} className="flex items-start gap-2.5">
@@ -220,7 +239,7 @@ export default function ConsultationCopilotPage() {
                 </div>
                 <div className="text-right text-[11px] text-stone-500">
                   <p>Date: {new Date().toLocaleDateString()}</p>
-                  <p>Patient: <strong>{profile.name}</strong> ({profile.age}y)</p>
+                  <p>Patient: <strong>{profile.name || 'Member'}</strong> ({profile.age || 'N/A'}y)</p>
                 </div>
               </div>
 
@@ -228,11 +247,16 @@ export default function ConsultationCopilotPage() {
               <div className="grid grid-cols-3 gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200 text-[11px]">
                 <div>
                   <span className="text-stone-500 block">Biometrics:</span>
-                  <strong>{profile.heightCm} cm • {profile.weightKg} kg (BMI 25.4)</strong>
+                  <strong>
+                    {profile.heightCm || '—'} cm • {profile.weightKg || '—'} kg
+                    {profile.heightCm > 0 && profile.weightKg > 0
+                      ? ` (BMI ${(profile.weightKg / Math.pow(profile.heightCm / 100, 2)).toFixed(1)})`
+                      : ''}
+                  </strong>
                 </div>
                 <div>
                   <span className="text-stone-500 block">Diagnosis Status:</span>
-                  <strong>{profile.pcosStatus} ({profile.diagnosisYear})</strong>
+                  <strong>{profile.pcosStatus} ({profile.diagnosisYear || 'N/A'})</strong>
                 </div>
                 <div>
                   <span className="text-stone-500 block">Cycle Rhythm:</span>
@@ -253,34 +277,24 @@ export default function ConsultationCopilotPage() {
               {/* Lab Panel Highlights */}
               <div>
                 <h4 className="font-bold text-[11px] uppercase tracking-wider text-stone-600 mb-1">
-                  Recent Biomarker Highlights (Jan 26, 2025)
+                  Recent Biomarker Highlights {latestReport?.date ? `(${latestReport.date})` : ''} — Informational Only, Not Diagnostic
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">HbA1c:</span>
-                    <strong className="text-amber-700">5.8% (Borderline)</strong>
+                {latestReport?.tests?.length ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {latestReport.tests.slice(0, 6).map((test, idx) => (
+                      <div key={idx} className="p-2 border rounded-lg bg-stone-50">
+                        <span className="text-stone-500 block">{test.name}:</span>
+                        <strong className={test.status === 'Normal' ? 'text-stone-800' : 'text-amber-700'}>
+                          {test.value} {test.unit} ({test.status})
+                        </strong>
+                      </div>
+                    ))}
                   </div>
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">Fasting Insulin:</span>
-                    <strong className="text-amber-700">14.2 μIU/mL</strong>
-                  </div>
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">LH / FSH Ratio:</span>
-                    <strong className="text-purple-800">2.3 (LH Dominant)</strong>
-                  </div>
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">Total Testosterone:</span>
-                    <strong className="text-purple-800">52 ng/dL (Elevated)</strong>
-                  </div>
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">Triglycerides:</span>
-                    <strong>165 mg/dL</strong>
-                  </div>
-                  <div className="p-2 border rounded-lg bg-stone-50">
-                    <span className="text-stone-500 block">Vitamin D:</span>
-                    <strong className="text-amber-700">24 ng/mL (Low)</strong>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-stone-500 bg-stone-50 p-2.5 rounded-lg border border-stone-200">
+                    No laboratory biomarkers stored on this account yet.
+                  </p>
+                )}
               </div>
 
               {/* Patient Questions */}
@@ -296,7 +310,7 @@ export default function ConsultationCopilotPage() {
               </div>
 
               <div className="pt-4 border-t text-[10px] text-stone-400 text-center">
-                Generated via PCOS360 Health Intelligence • For Clinical Decision Support Only
+                Generated via PCOS360 Health Intelligence • Informational Summary Only (Not Diagnostic) • Always verify against official lab reports with a licensed clinician.
               </div>
             </div>
           </div>

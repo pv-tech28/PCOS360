@@ -2,77 +2,78 @@
 
 > **Beyond Symptoms. Understand Your PCOS.**
 
-PCOS360 is a modern, responsive healthcare web application designed to help women understand and manage PCOS/PCOD through personalized health insights, symptom tracking, metabolic monitoring, explainable clinical intelligence, and doctor consultation preparation.
+PCOS360 is a multi-user health intelligence platform across FastAPI, React (web), and React Native / Expo (mobile) to help women track PCOS/PCOD symptoms, menstrual cycles, lifestyle habits, metabolic biomarkers, and clinician consultation summaries.
 
 ---
 
 ## 🏗️ Architecture & Technology Stack
 
-* **Frontend:** React 19, Vite, Tailwind CSS v4, Lucide React, Recharts (`http://localhost:5173`)
-* **Backend:** FastAPI, Python 3.13, Uvicorn, Pydantic v2 (`http://localhost:8000`)
-* **Database & ORM:** PostgreSQL (`pcos360_db`), SQLAlchemy 2.0, Psycopg 3 (`psycopg[binary]`), SQLite zero-config fallback
+* **Web Frontend:** React 19, Vite, Tailwind CSS v4, Lucide React, Recharts (`http://localhost:5173`)
+* **Mobile App:** React Native + Expo SDK 58 (`mobile/`, Metro bundler on port `8081`)
+* **Backend:** FastAPI, Python, Uvicorn, Pydantic v2 (`http://localhost:8000`)
+* **Auth & Sessions:** Salted `scrypt` password hashing, HS256 signed JWT bearer tokens backed by revocable `user_sessions` rows
+* **Database & ORM:** PostgreSQL (`pcos360_db`), SQLAlchemy 2.0, Psycopg 3 (`psycopg[binary]`), SQLite zero-config local fallback (`backend/pcos360.db`)
 * **Database Migrations:** Alembic
 
 ---
 
-## 🗄️ PostgreSQL Database Architecture (`pcos360_db`)
+## 🗄️ Database Architecture (`pcos360_db`)
 
-The database is structured across seven relational tables with foreign keys (`users.id` cascade delete), indexes, and timezone-aware timestamps:
+The relational schema spans **eight** tables with cascade-delete foreign keys, indexes, and timezone-aware timestamps:
 
 1. **`users`**
    * `id` (PK, Integer, Auto-increment)
    * `full_name` (VARCHAR 150)
    * `email` (VARCHAR 255, Unique, Indexed)
-   * `password_hash` (VARCHAR 255, Nullable, reserved for future authentication)
+   * `password_hash` (VARCHAR 255, Nullable for demo-only records; Scrypt salted hash for real accounts)
+   * `is_active` (Boolean, default `true`)
+   * `is_demo` (Boolean, default `false`; blocks interactive login for seeded demo rows)
    * `created_at`, `updated_at` (TIMESTAMPTZ)
 
-2. **`health_profiles`**
+2. **`user_sessions`**
+   * `id` (PK)
+   * `user_id` (FK -> `users.id`, CASCADE delete)
+   * `token_jti` (VARCHAR 64, Unique, Indexed)
+   * `user_agent` (VARCHAR 255, Optional)
+   * `created_at`, `expires_at`, `revoked_at` (TIMESTAMPTZ)
+
+3. **`health_profiles`**
    * `id` (PK)
    * `user_id` (FK -> `users.id`, Unique 1-to-1)
    * `age` (Integer), `height` (Float, cm), `weight` (Float, kg)
-   * `diagnosis_status` ("Diagnosed" / "Not Diagnosed" / "Unsure")
+   * `diagnosis_status` (`"Diagnosed"` / `"Not diagnosed"` / `"Unsure"`)
    * `diagnosis_year` (Integer, Optional)
    * `existing_conditions` (JSON List, Optional)
    * `medications` (JSON List, Optional)
    * `created_at`, `updated_at` (TIMESTAMPTZ)
 
-3. **`menstrual_cycles`**
-   * `id` (PK)
-   * `user_id` (FK -> `users.id`)
-   * `period_start_date` (DATE)
-   * `period_end_date` (DATE, Optional)
-   * `cycle_length` (Integer, days)
-   * `flow_intensity` (VARCHAR 50: Light / Medium / Heavy)
-   * `notes` (TEXT, Optional)
+4. **`menstrual_cycles`**
+   * `id` (PK), `user_id` (FK -> `users.id`)
+   * `period_start_date`, `period_end_date` (DATE)
+   * `cycle_length` (Integer, days), `flow_intensity` (VARCHAR 50), `notes` (TEXT, Optional)
    * `created_at` (TIMESTAMPTZ)
 
-4. **`daily_symptoms`**
-   * `id` (PK)
-   * `user_id` (FK -> `users.id`)
-   * `log_date` (DATE, Indexed)
+5. **`daily_symptoms`**
+   * `id` (PK), `user_id` (FK -> `users.id`), `log_date` (DATE, Indexed)
    * `acne_severity`, `hair_loss`, `unwanted_hair_growth` (VARCHAR 50)
    * `fatigue_level`, `bloating`, `pelvic_pain` (Integer 1-10)
    * `mood` (VARCHAR 100), `notes` (TEXT)
    * `created_at` (TIMESTAMPTZ)
 
-5. **`lifestyle_logs`**
-   * `id` (PK)
-   * `user_id` (FK -> `users.id`)
-   * `log_date` (DATE, Indexed)
+6. **`lifestyle_logs`**
+   * `id` (PK), `user_id` (FK -> `users.id`), `log_date` (DATE, Indexed)
    * `sleep_hours` (Float), `stress_level` (Integer 1-5), `water_intake` (Float)
    * `exercise_minutes` (Integer), `food_habits` (VARCHAR 150), `meal_regularity` (VARCHAR 50)
    * `created_at` (TIMESTAMPTZ)
 
-6. **`lab_reports`**
-   * `id` (PK)
-   * `user_id` (FK -> `users.id`)
+7. **`lab_reports`**
+   * `id` (PK), `user_id` (FK -> `users.id`)
    * `report_name` (VARCHAR 255), `test_name` (VARCHAR 150), `test_value` (Float)
    * `unit` (VARCHAR 50), `reference_range` (VARCHAR 100), `report_date` (DATE)
    * `created_at` (TIMESTAMPTZ)
 
-7. **`clinical_records`**
-   * `id` (PK)
-   * `user_id` (FK -> `users.id`)
+8. **`clinical_records`**
+   * `id` (PK), `user_id` (FK -> `users.id`)
    * `testosterone`, `free_testosterone`, `dheas`, `amh` (Float, Optional)
    * `ultrasound_findings`, `ovulation_history` (TEXT, Optional)
    * `recorded_at` (TIMESTAMPTZ)
@@ -81,44 +82,22 @@ The database is structured across seven relational tables with foreign keys (`us
 
 ## 🛠️ Step-by-Step Setup Guide
 
-### 1. PostgreSQL Installation on Windows (If not already installed)
+### 1. Database Setup (PostgreSQL or Local SQLite Fallback)
 
-You have three easy options:
-
-#### Option A: Windows Package Manager (Fastest via PowerShell)
-Open PowerShell as Administrator and run:
-```powershell
-winget install PostgreSQL.PostgreSQL.16
-```
-
-#### Option B: Official Graphical Installer
-1. Download the Windows installer from [EnterpriseDB PostgreSQL Downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads).
-2. Choose version 16 or 15. Set password for the `postgres` user (e.g. `postgres`).
-3. Complete the installation wizard (keep default port `5432`).
-
-#### Option C: Docker (If Docker Desktop is installed)
-```powershell
-docker run --name pcos360-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=pcos360_db -p 5432:5432 -d postgres:16
-```
-
----
-
-### 2. Create the Database
-
-Open `psql` (or pgAdmin) and run:
+Create `pcos360_db` in PostgreSQL if using Postgres:
 ```sql
 CREATE DATABASE pcos360_db;
 ```
-Verify creation:
-```sql
-\l
+> **Note:** If PostgreSQL is unavailable locally, PCOS360 automatically falls back to SQLite (`backend/pcos360.db`) for development.
+
+### 2. Backend Environment Variables (`backend/.env`)
+
+Copy `backend/.env.example` to `backend/.env` and generate a strong `SECRET_KEY` (required in non-development environments; >=32 random characters):
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
----
-
-### 3. Backend Environment Configuration (`backend/.env`)
-
-Configure your connection string in `backend/.env`:
+Example `backend/.env`:
 ```env
 PROJECT_NAME="PCOS360 API"
 VERSION="1.0.0"
@@ -129,75 +108,106 @@ DEBUG_SQL=false
 HOST="0.0.0.0"
 PORT=8000
 
-# PostgreSQL Connection String:
+SECRET_KEY="<paste-generated-random-secret>"
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# PostgreSQL Connection String (falls back to SQLite in local dev if unreachable):
 DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/pcos360_db"
 
-# CORS configuration allowing React dev server:
-BACKEND_CORS_ORIGINS='["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]'
+# Allowed browser/bundler dev origins:
+BACKEND_CORS_ORIGINS='["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://localhost:8081"]'
 ```
 
-> **Note:** If PostgreSQL is temporarily stopped or offline during local frontend UI development, PCOS360's database connector automatically falls back to local SQLite (`pcos360.db`) without crashing, and switches to PostgreSQL as soon as the service is available.
+### 3. Run Alembic Database Migrations
 
----
-
-### 4. Run Alembic Database Migrations
-
-Apply the migration creating all seven database tables:
+Apply migrations (creates core tables plus `user_sessions` and `is_active`/`is_demo` user flags; marks any legacy passwordless rows as `is_demo=True`):
 ```powershell
 cd backend
 .\venv\Scripts\Activate.ps1
 alembic upgrade head
 ```
 
-Optionally seed initial development records (Ananya Sharma profile, cycle logs, lab biomarkers):
+Optionally seed local demo records (creates an `is_demo=True`, `password_hash=None` record that cannot log in via `/api/auth/login`):
 ```powershell
 python seed_data.py
 ```
 
----
+### 4. Frontend Environment (`frontend/.env.example`)
 
-### 5. Running the Backend & Frontend Simultaneously
-
-#### Terminal 1 – Frontend (React + Vite)
-```powershell
-cd frontend
-npm run dev
+Copy `frontend/.env.example` to `frontend/.env` if targeting a custom backend host:
+```env
+VITE_API_BASE_URL=http://localhost:8000
 ```
-* **Frontend App:** `http://localhost:5173`
 
-#### Terminal 2 – Backend (FastAPI + PostgreSQL)
+### 5. Running Backend, Web Frontend, and Mobile App
+
+#### Terminal 1 – Backend API (FastAPI)
 ```powershell
 cd backend
 .\venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
-* **Backend Base:** `http://localhost:8000`
-* **Health Check & DB Status:** `http://localhost:8000/api/health`
-* **Interactive Swagger UI:** `http://localhost:8000/docs`
+* **Health Check:** `http://localhost:8000/api/health`
+* **Swagger Docs:** `http://localhost:8000/docs`
+
+#### Terminal 2 – Web App (React + Vite)
+```powershell
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0
+```
+* **Web App:** `http://localhost:5173`
+
+#### Terminal 3 – Mobile App (React Native + Expo)
+```powershell
+cd mobile
+npm install
+npx expo start --clear
+```
+* On a USB-connected Android device, run `adb reverse tcp:8081 tcp:8081` and `adb reverse tcp:8000 tcp:8000` (configured automatically in `mobile/android/app/build.gradle`), or configure your LAN IP (e.g., `http://<PC_LAN_IP>:8000`) directly in the app's **Settings** screen.
+* Both Web and Mobile start on the Sign In / Registration gate for real user accounts and isolate Sample Demo Mode cleanly in local memory/storage without writing demo edits to any user account.
 
 ---
 
-## 🧪 Verified API Endpoints
+## 🧪 Authenticated API Endpoints
 
-All Phase 2 endpoints have been implemented and verified:
+All health endpoints require an `Authorization: Bearer <token>` header issued by `/api/auth/register` or `/api/auth/login`. The backend always derives `user_id` from the verified session token and rejects client-supplied `user_id` fields (`422`).
 
-| Resource | Method | Path | Description |
-| :--- | :---: | :--- | :--- |
-| **Health & DB** | `GET` | `/api/health` | Returns service status and PostgreSQL connectivity |
-| **Health Profile** | `POST` | `/api/profile/` | Initialize user health profile |
-| | `GET` | `/api/profile/{user_id}` | Retrieve profile by user ID |
-| | `PUT` | `/api/profile/{user_id}` | Update age, weight, conditions, medications |
-| **Menstrual Cycles** | `POST` | `/api/cycles/` | Log cycle start date, flow intensity, notes |
-| | `GET` | `/api/cycles/{user_id}` | Retrieve full cycle history |
-| | `DELETE`| `/api/cycles/{cycle_id}` | Delete cycle log |
-| **Daily Symptoms** | `POST` | `/api/symptoms/` | Log acne, fatigue, pelvic pain, mood, notes |
-| | `GET` | `/api/symptoms/{user_id}` | List user's recorded symptoms |
-| | `PUT` | `/api/symptoms/{symptom_id}` | Update symptom severity |
-| | `DELETE`| `/api/symptoms/{symptom_id}` | Delete symptom entry |
-| **Lifestyle Logs** | `POST` | `/api/lifestyle/` | Log sleep hours, stress rating (1-5), water, exercise |
-| | `GET` | `/api/lifestyle/{user_id}` | Retrieve longitudinal lifestyle entries |
-| **Lab Reports** | `POST` | `/api/lab-reports/` | Save biomarker name, value, unit, reference range |
-| | `GET` | `/api/lab-reports/{user_id}` | Retrieve all lab test records |
-| | `DELETE`| `/api/lab-reports/{report_id}` | Delete lab record |
-| **Clinical Records**| `POST` | `/api/clinical-records/` | Record androgens (testosterone, AMH), ultrasound findings |
-| | `GET` | `/api/clinical-records/{user_id}` | Retrieve clinical presentation records |
+| Resource | Method | Path | Auth | Description |
+| :--- | :---: | :--- | :---: | :--- |
+| **Health & DB** | `GET` | `/api/health` | Public | Service status and database connectivity |
+| **Auth** | `POST` | `/api/auth/register` | Public | Register user account & issue session token (IP rate-limited) |
+| | `POST` | `/api/auth/login` | Public | Authenticate password & issue session token (brute-force `429` rate-limited) |
+| | `POST` | `/api/auth/logout` | Bearer | Revoke current `user_sessions` row |
+| | `GET` | `/api/auth/me` | Bearer | Current authenticated user record |
+| | `PUT` | `/api/auth/me` | Bearer | Update authenticated user's full name |
+| **Health Profile** | `POST` | `/api/profile/` | Bearer | Initialize authenticated user's profile |
+| | `GET` | `/api/profile/me` | Bearer | Retrieve authenticated user's profile |
+| | `PUT` | `/api/profile/me` | Bearer | Update age, metrics, conditions, medications |
+| **Menstrual Cycles** | `POST` | `/api/cycles/` | Bearer | Log cycle record for authenticated user |
+| | `GET` | `/api/cycles/` | Bearer | List authenticated user's cycle history |
+| | `DELETE`| `/api/cycles/{cycle_id}` | Bearer | Delete cycle owned by authenticated user |
+| **Daily Symptoms** | `POST` | `/api/symptoms/` | Bearer | Log daily symptoms for authenticated user |
+| | `GET` | `/api/symptoms/` | Bearer | List authenticated user's symptom logs |
+| | `PUT` | `/api/symptoms/{symptom_id}` | Bearer | Update symptom entry owned by user |
+| | `DELETE`| `/api/symptoms/{symptom_id}` | Bearer | Delete symptom entry owned by user |
+| **Lifestyle Logs** | `POST` | `/api/lifestyle/` | Bearer | Log sleep, stress, water, exercise |
+| | `GET` | `/api/lifestyle/` | Bearer | List authenticated user's lifestyle logs |
+| **Lab Reports** | `POST` | `/api/lab-reports/` | Bearer | Save verified numeric biomarker record |
+| | `GET` | `/api/lab-reports/` | Bearer | List authenticated user's lab biomarkers |
+| | `DELETE`| `/api/lab-reports/{report_id}` | Bearer | Delete biomarker record owned by user |
+| **Clinical Records**| `POST` | `/api/clinical-records/` | Bearer | Save androgen / AMH / ultrasound findings |
+| | `GET` | `/api/clinical-records/` | Bearer | List authenticated user's clinical records |
+
+---
+
+## ⚠️ Security, Privacy & Pre-Production Gaps
+
+While PCOS360 enforces per-account authentication, password hashing (`scrypt`), revocable server sessions, sliding-window rate limiting on `/api/auth/login` and `/api/auth/register` (`429 Too Many Requests` + `Retry-After`), and strict user data isolation in local development, **it is NOT ready for public production or regulated healthcare deployment** until the following prioritized gaps are addressed:
+
+1. **Transport Security (HTTPS/TLS):** Local dev uses plain HTTP (and `usesCleartextTraffic` in Android debug manifests). Production deployments must terminate TLS/HTTPS everywhere and disable Android cleartext traffic in release builds.
+2. **Token Storage Hardening:** Web currently stores bearer tokens in `localStorage` and mobile stores them in `AsyncStorage`. Production deployments should move web sessions to `HttpOnly; Secure; SameSite` cookies (with CSRF protection) and mobile tokens to hardware-backed `expo-secure-store`.
+3. **Account Lifecycle Flows:** Email verification, password reset/rotation, active session list management ("sign out all devices"), and full GDPR/HIPAA account deletion workflows are not yet implemented.
+4. **Rate Limiting Scale-Out:** Auth throttling currently uses an in-memory per-process sliding window (`backend/app/core/rate_limit.py`); multi-worker production deployments must back this with a shared store such as Redis and set `TRUST_PROXY_HEADERS=true` only behind a trusted reverse proxy.
+5. **Secrets, CORS & Startup Config:** Production must set `ENVIRONMENT="production"` with a strong externally managed `SECRET_KEY`, restrict `BACKEND_CORS_ORIGINS` strictly to production origins, disable automatic SQLite dev fallback in production, and prune expired `user_sessions` periodically.
+6. **Real Server-Side Lab OCR, Encryption at Rest & Compliance:** Sensitive health data is not field-encrypted at rest yet, nor are HIPAA/GDPR audit logs or server-side PDF/image OCR parsing implemented (web and mobile lab decoders load editable/sample preview values only; all biomarker summaries are strictly **informational and not diagnostic**).

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Calendar, Scale, Stethoscope, ChevronRight, Check } from 'lucide-react-native';
@@ -17,26 +18,53 @@ import Badge from '../../components/common/Badge';
 import { useHealth } from '../../context/HealthContext';
 
 export default function OnboardingScreen({ navigation }) {
-  const { profile, updateProfile } = useHealth();
+  const { profile, authUser, updateProfile } = useHealth();
 
-  const [age, setAge] = useState(profile.age || 23);
-  const [heightCm, setHeightCm] = useState(profile.heightCm || 160);
-  const [weightKg, setWeightKg] = useState(profile.weightKg || 65);
-  const [pcosStatus, setPcosStatus] = useState(profile.pcosStatus || 'Diagnosed');
-  const [diagnosisYear, setDiagnosisYear] = useState(profile.diagnosisYear || 2023);
+  const [age, setAge] = useState(profile.age ? String(profile.age) : '');
+  const [heightCm, setHeightCm] = useState(profile.heightCm ? String(profile.heightCm) : '');
+  const [weightKg, setWeightKg] = useState(profile.weightKg ? String(profile.weightKg) : '');
+  const [pcosStatus, setPcosStatus] = useState(profile.pcosStatus || 'Unsure');
+  const [diagnosisYear, setDiagnosisYear] = useState(
+    profile.diagnosisYear ? String(profile.diagnosisYear) : String(new Date().getFullYear())
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile.age) setAge(String(profile.age));
+    if (profile.heightCm) setHeightCm(String(profile.heightCm));
+    if (profile.weightKg) setWeightKg(String(profile.weightKg));
+    if (profile.pcosStatus) setPcosStatus(profile.pcosStatus);
+    if (profile.diagnosisYear) setDiagnosisYear(String(profile.diagnosisYear));
+  }, [profile]);
 
   // Status Picker Modal state
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace('MainTabs');
+    }
+  };
+
   const handleContinue = async () => {
-    await updateProfile({
+    setIsSaving(true);
+    const res = await updateProfile({
+      fullName: profile.fullName || authUser?.full_name || '',
       age: Number(age),
       heightCm: Number(heightCm),
       weightKg: Number(weightKg),
       pcosStatus,
-      diagnosisYear: Number(diagnosisYear),
+      diagnosisYear: diagnosisYear ? Number(diagnosisYear) : null,
     });
-    navigation.navigate('MainTabs');
+    setIsSaving(false);
+
+    if (res?.ok) {
+      navigation.replace('MainTabs');
+    } else {
+      Alert.alert('Profile Not Saved', res?.error || 'Please check your metrics and connection.');
+    }
   };
 
   const statusOptions = ['Diagnosed', 'Not diagnosed', 'Unsure'];
@@ -46,7 +74,7 @@ export default function OnboardingScreen({ navigation }) {
       {/* Top Header */}
       <View style={styles.header}>
         <Pressable
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
           hitSlop={12}
           style={styles.backButton}
         >
@@ -172,8 +200,9 @@ export default function OnboardingScreen({ navigation }) {
       {/* Bottom Button */}
       <View style={styles.bottomBar}>
         <Button
-          title="Continue"
+          title="Save & Continue"
           size="large"
+          loading={isSaving}
           onPress={handleContinue}
           style={styles.continueButton}
         />

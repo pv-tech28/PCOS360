@@ -29,6 +29,10 @@ import { useHealth } from '../../context/HealthContext';
 export default function DashboardScreen({ navigation }) {
   const {
     profile,
+    authUser,
+    isDemoMode,
+    logout,
+    lastError,
     cycleData,
     recentActivities,
     careGaps,
@@ -71,12 +75,42 @@ export default function DashboardScreen({ navigation }) {
         {/* User Greeting */}
         <View style={styles.greetingSection}>
           <Text style={styles.greetingTitle}>
-            Hi, {profile.name || 'Ananya'} 👋
+            Hi, {(profile.name || authUser?.full_name || 'Member').split(' ')[0]} 👋
           </Text>
           <Text style={styles.greetingSubtitle}>
-            Here's your health overview
+            {isDemoMode
+              ? 'Demo Mode — Viewing sample profile locally'
+              : "Here's your private health overview"}
           </Text>
         </View>
+
+        {isDemoMode && (
+          <Pressable
+            onPress={logout}
+            style={[styles.dbStatusBanner, { backgroundColor: '#F3E8FF', marginBottom: 8 }]}
+          >
+            <Text style={[styles.dbStatusText, { color: '#6B21A8' }]}>
+              Demo Sample Mode (Not Saved) • Tap to Sign In
+            </Text>
+          </Pressable>
+        )}
+
+        {lastError ? (
+          <View style={[styles.dbStatusBanner, { backgroundColor: '#FEF2F2', marginBottom: 8 }]}>
+            <Text style={[styles.dbStatusText, { color: '#991B1B' }]}>{lastError}</Text>
+          </View>
+        ) : null}
+
+        {!profile.initialized && !isDemoMode && (
+          <Pressable
+            onPress={() => navigation.navigate('Onboarding')}
+            style={[styles.dbStatusBanner, { backgroundColor: '#EDE5F7', marginBottom: 8 }]}
+          >
+            <Text style={[styles.dbStatusText, { color: '#553878' }]}>
+              Complete your baseline health profile →
+            </Text>
+          </Pressable>
+        )}
 
         {/* Database Status Ribbon */}
         <Pressable
@@ -94,8 +128,8 @@ export default function DashboardScreen({ navigation }) {
             ]}
           >
             {dbConnected
-              ? 'FastAPI Backend & PostgreSQL Connected'
-              : 'Offline Mode (Local Storage Active)'}
+              ? 'FastAPI Backend Connected'
+              : 'Offline Mode (Local Cache Active)'}
           </Text>
         </Pressable>
 

@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  User,
-  Settings as SettingsIcon,
   Shield,
   Download,
   RotateCcw,
   CheckCircle2,
-  Lock,
-  Pill,
+  AlertCircle,
+  LogOut,
   Save
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
@@ -17,6 +15,10 @@ import EthicalDisclaimer from '../components/common/EthicalDisclaimer';
 export default function SettingsPage() {
   const {
     profile,
+    authUser,
+    isDemoMode,
+    logout,
+    setIsAuthModalOpen,
     updateProfile,
     resetToDemo,
     labReports,
@@ -25,34 +27,57 @@ export default function SettingsPage() {
   } = useHealth();
 
   const [formData, setFormData] = useState({
-    name: profile.name,
-    age: profile.age,
-    heightCm: profile.heightCm,
-    weightKg: profile.weightKg,
-    pcosStatus: profile.pcosStatus,
-    diagnosisYear: profile.diagnosisYear,
+    name: profile.name || authUser?.full_name || '',
+    age: profile.age || '',
+    heightCm: profile.heightCm || '',
+    weightKg: profile.weightKg || '',
+    pcosStatus: profile.pcosStatus || 'Unsure',
+    diagnosisYear: profile.diagnosisYear || '',
     medications: profile.medications?.join(', ') || ''
   });
 
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  useEffect(() => {
+    setFormData({
+      name: profile.name || authUser?.full_name || '',
+      age: profile.age ?? '',
+      heightCm: profile.heightCm ?? '',
+      weightKg: profile.weightKg ?? '',
+      pcosStatus: profile.pcosStatus || 'Unsure',
+      diagnosisYear: profile.diagnosisYear ?? '',
+      medications: profile.medications?.join(', ') || ''
+    });
+  }, [profile, authUser]);
 
-  const handleSave = (e) => {
+  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    updateProfile({
+    setSaveError('');
+    setSavedSuccess(false);
+    setSaving(true);
+    const res = await updateProfile({
       name: formData.name,
-      age: parseInt(formData.age) || 23,
-      heightCm: parseInt(formData.heightCm) || 160,
-      weightKg: parseFloat(formData.weightKg) || 65,
+      age: formData.age,
+      heightCm: formData.heightCm,
+      weightKg: formData.weightKg,
       pcosStatus: formData.pcosStatus,
-      diagnosisYear: parseInt(formData.diagnosisYear) || 2023,
+      diagnosisYear: formData.diagnosisYear ? parseInt(formData.diagnosisYear, 10) : null,
       medications: formData.medications.split(',').map(m => m.trim()).filter(Boolean)
     });
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
+    setSaving(false);
+    if (res?.ok) {
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2500);
+    } else {
+      setSaveError(res?.error || 'Could not update profile.');
+    }
   };
 
   const exportData = () => {
     const data = {
+      account: authUser ? { id: authUser.id, email: authUser.email, full_name: authUser.full_name, isDemo: isDemoMode } : null,
       profile,
       cycleData,
       labReports,
@@ -63,7 +88,8 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `PCOS360_Health_Records_${profile.name.replace(/\s+/g, '_')}.json`;
+    const safeName = (profile.name || authUser?.full_name || 'User').replace(/\s+/g, '_');
+    a.download = `PCOS360_Health_Records_${safeName}.json`;
     a.click();
   };
 
@@ -84,6 +110,11 @@ export default function SettingsPage() {
         {savedSuccess && (
           <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Changes Saved!
+          </span>
+        )}
+        {saveError && (
+          <span className="text-xs font-semibold text-rose-800 bg-rose-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-rose-200">
+            <AlertCircle className="w-4 h-4 text-rose-600" /> {saveError}
           </span>
         )}
       </div>
@@ -173,24 +204,61 @@ export default function SettingsPage() {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] transition-all shadow-xs cursor-pointer"
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] disabled:opacity-60 transition-all shadow-xs cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>Update Health Profile</span>
+              <span>{saving ? 'Saving...' : 'Update Health Profile'}</span>
             </button>
           </div>
         </form>
 
         {/* Security & Data Actions */}
         <div className="space-y-4">
+          <div className="bg-white rounded-3xl border border-[#EFEAF4] p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#292431] font-bold text-sm">
+                <Shield className="w-4 h-4 text-[#7950A8]" />
+                <span>{isDemoMode ? 'Demo Session (Local Only)' : 'Authenticated Account'}</span>
+              </div>
+              <Badge variant={isDemoMode ? 'amber' : 'green'} size="xs">
+                {isDemoMode ? 'Demo' : 'Private'}
+              </Badge>
+            </div>
+            <p className="text-xs text-[#77717F] leading-relaxed">
+              {isDemoMode
+                ? 'Viewing Ananya Sharma sample data locally. Sign in or register to save private health data.'
+                : `Signed in as ${authUser?.email || 'Authenticated User'}. Your health records are isolated to your account.`}
+            </p>
+            <div className="flex gap-2">
+              {isDemoMode && (
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#7950A8] text-white text-xs font-semibold hover:bg-[#694195] transition-all cursor-pointer"
+                >
+                  Sign In / Register
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                className="flex-1 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{isDemoMode ? 'Exit Demo' : 'Sign Out'}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl border border-[#EFEAF4] p-6 shadow-xs space-y-4">
             <div className="flex items-center gap-2 text-[#292431] font-bold text-sm">
               <Shield className="w-4 h-4 text-[#7950A8]" />
-              <span>Data Export & Security</span>
+              <span>Data Export</span>
             </div>
 
             <p className="text-xs text-[#77717F] leading-relaxed">
-              Your health data is stored locally in your browser session and encrypted client-side. You own 100% of your health history.
+              Download your currently loaded profile, cycle history, lab panels, and timeline as JSON.
             </p>
 
             <button
@@ -199,28 +267,30 @@ export default function SettingsPage() {
               className="w-full py-2.5 rounded-xl bg-[#EDE5F7] text-[#7950A8] text-xs font-semibold hover:bg-[#E3D6F2] transition-all flex items-center justify-center gap-2 border border-[#DFCDEE] cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span>Export Full Records (JSON)</span>
+              <span>Export Records (JSON)</span>
             </button>
           </div>
 
-          <div className="bg-white rounded-3xl border border-[#EFEAF4] p-6 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-[#292431] font-bold text-sm">
-              <RotateCcw className="w-4 h-4 text-stone-500" />
-              <span>Demo Controls</span>
+          {isDemoMode && (
+            <div className="bg-white rounded-3xl border border-[#EFEAF4] p-6 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 text-[#292431] font-bold text-sm">
+                <RotateCcw className="w-4 h-4 text-stone-500" />
+                <span>Demo Sample Controls</span>
+              </div>
+
+              <p className="text-xs text-[#77717F]">
+                Reset sample demo logs, lab reports, and metrics back to initial Ananya Sharma preview state.
+              </p>
+
+              <button
+                type="button"
+                onClick={resetToDemo}
+                className="w-full py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-all cursor-pointer"
+              >
+                Reset Sample Demo
+              </button>
             </div>
-
-            <p className="text-xs text-[#77717F]">
-              Reset all logs, lab reports, and metrics back to initial Ananya Sharma demo state.
-            </p>
-
-            <button
-              type="button"
-              onClick={resetToDemo}
-              className="w-full py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-all cursor-pointer"
-            >
-              Reset to Initial Demo State
-            </button>
-          </div>
+          )}
         </div>
       </div>
 

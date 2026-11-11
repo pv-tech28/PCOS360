@@ -1,34 +1,41 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.lab_report import LabReport
+from app.models.user import User
 from app.schemas.lab_report import (
     LabReportCreate,
     LabReportResponse,
 )
-from app.services import ensure_dev_user
 
 router = APIRouter(prefix="/lab-reports", tags=["Lab Reports"])
 
 
 @router.post("/", response_model=LabReportResponse, status_code=status.HTTP_201_CREATED)
-def create_lab_report(payload: LabReportCreate, db: Session = Depends(get_db)):
-    """Save an extracted or manually verified lab biomarker record."""
-    ensure_dev_user(db, payload.user_id)
-    report = LabReport(**payload.model_dump())
+def create_lab_report(
+    payload: LabReportCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save a lab biomarker record owned by the authenticated user."""
+    report = LabReport(user_id=current_user.id, **payload.model_dump())
     db.add(report)
     db.commit()
     db.refresh(report)
     return report
 
 
-@router.get("/{user_id}", response_model=List[LabReportResponse])
-def get_user_lab_reports(user_id: int, db: Session = Depends(get_db)):
-    """Retrieve all laboratory biomarker records for a user, ordered by report date descending."""
+@router.get("/", response_model=List[LabReportResponse])
+def get_user_lab_reports(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieve all laboratory biomarker records for the authenticated user."""
     reports = (
         db.query(LabReport)
-        .filter(LabReport.user_id == user_id)
+        .filter(LabReport.user_id == current_user.id)
         .order_by(LabReport.report_date.desc())
         .all()
     )
@@ -36,9 +43,17 @@ def get_user_lab_reports(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_200_OK)
-def delete_lab_report(report_id: int, db: Session = Depends(get_db)):
-    """Delete a specific lab report entry by ID."""
-    report = db.query(LabReport).filter(LabReport.id == report_id).first()
+def delete_lab_report(
+    report_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a lab report entry owned by the authenticated user."""
+    report = (
+        db.query(LabReport)
+        .filter(LabReport.id == report_id, LabReport.user_id == current_user.id)
+        .first()
+    )
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -47,4 +62,3 @@ def delete_lab_report(report_id: int, db: Session = Depends(get_db)):
     db.delete(report)
     db.commit()
     return {"message": f"Lab report {report_id} successfully deleted."}
-
