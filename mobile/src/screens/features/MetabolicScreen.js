@@ -3,9 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Activity, ShieldAlert, Heart, TrendingUp, Info } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';

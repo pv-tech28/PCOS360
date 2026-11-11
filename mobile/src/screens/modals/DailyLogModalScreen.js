@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
   Pressable,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Check, HeartPulse, Smile, Moon } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';

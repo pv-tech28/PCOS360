@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, Plus, Sparkles, Clock, CheckCircle } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';
@@ -21,7 +21,7 @@ export default function TrackerScreen({ navigation }) {
   const { cycleData } = useHealth();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <Header
         title="Cycle & Health Tracker"
         subtitle="Menstrual Telemetry"

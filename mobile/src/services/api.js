@@ -1,10 +1,38 @@
 // PCOS360 Mobile API Service - Communicates with FastAPI backend
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// On Android Emulator, host machine localhost is accessible via 10.0.2.2
-// On iOS simulator, host machine is localhost
-// On physical devices, set your machine's LAN IP (e.g. http://192.168.1.5:8000)
-const DEFAULT_HOST = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+// Auto-resolve backend host from Metro/Expo dev server URL:
+// - Physical device via USB (`adb reverse`): localhost -> http://localhost:8000
+// - Physical device via Wi-Fi LAN: <PC_IP> -> http://<PC_IP>:8000
+// - Android Emulator: 10.0.2.2 -> http://10.0.2.2:8000
+const resolveDefaultHost = () => {
+  if (Platform.OS !== 'android') {
+    return 'http://localhost:8000';
+  }
+
+  const scriptURL = NativeModules.SourceCode?.scriptURL;
+  if (scriptURL && /^https?:\/\//i.test(scriptURL)) {
+    const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
+    if (match?.[1]) {
+      return `http://${match[1]}:8000`;
+    }
+  }
+
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host) {
+      return `http://${host}:8000`;
+    }
+  }
+
+  return 'http://10.0.2.2:8000';
+};
+
+const DEFAULT_HOST = resolveDefaultHost();
 
 let currentBaseUrl = DEFAULT_HOST;
 

@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, CheckCircle2, XCircle, AlertCircle, BookOpen } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';
@@ -37,7 +37,7 @@ export default function LearningHubScreen({ navigation }) {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <Header
         showBack
         title="PCOS Myth Buster"

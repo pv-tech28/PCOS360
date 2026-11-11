@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Sparkles,
   FileText,
@@ -39,7 +39,7 @@ export default function DashboardScreen({ navigation }) {
   const handleSelectQuickAction = (id) => {
     switch (id) {
       case 'pcoscope':
-        navigation.navigate('Pcoscope');
+        navigation.navigate('InsightsTab');
         break;
       case 'metabolic':
         navigation.navigate('Metabolic');
@@ -56,7 +56,7 @@ export default function DashboardScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <Header
         showLogo
         showBell
@@ -104,7 +104,7 @@ export default function DashboardScreen({ navigation }) {
           currentDay={cycleData.currentDay || 18}
           totalDays={cycleData.totalDays || 35}
           phase={cycleData.phase || 'Luteal Phase'}
-          onPressCalendar={() => navigation.navigate('Tracker')}
+          onPressCalendar={() => navigation.navigate('TrackTab')}
         />
 
         {/* 2x2 Quick Action Tiles (Mockup Match) */}

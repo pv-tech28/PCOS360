@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlertTriangle, Stethoscope, ClipboardCheck, FileQuestion } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';
@@ -37,7 +37,7 @@ export default function CareGapsScreen({ navigation }) {
         navigation.navigate('ClinicalExplorer');
         break;
       default:
-        navigation.navigate('Dashboard');
+        navigation.navigate('MainTabs', { screen: 'HomeTab' });
         break;
     }
   };

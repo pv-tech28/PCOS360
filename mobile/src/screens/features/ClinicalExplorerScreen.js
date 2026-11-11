@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Microscope, Check, AlertCircle, Info, ChevronRight } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';

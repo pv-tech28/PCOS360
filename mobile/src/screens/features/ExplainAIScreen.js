@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sparkles, Send, ShieldCheck, ChevronRight, Brain } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';

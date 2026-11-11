@@ -96,6 +96,11 @@ android {
         versionName "1.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        externalNativeBuild {
+            cmake {
+                arguments "-DCMAKE_OBJECT_PATH_MAX=250"
+            }
+        }
     }
     signingConfigs {
         debug {
@@ -129,6 +134,11 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+    externalNativeBuild {
+        cmake {
+            buildStagingDirectory = file("C:/tmp/pcos_cxx2")
+        }
     }
 }
 
@@ -179,4 +189,39 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+}
+
+// Automatically forward Metro (8081) and FastAPI backend (8000) ports to any connected USB ADB device
+// so pressing Run in Android Studio works without manually running `adb reverse`.
+def adbBinName = System.getProperty("os.name").toLowerCase().contains("win") ? "adb.exe" : "adb"
+def configuredAdbPath = new File(android.sdkDirectory, "platform-tools/${adbBinName}").absolutePath
+
+tasks.register("adbReversePorts") {
+    group = "dev"
+    description = "Forward ports 8081 and 8000 to connected Android devices over ADB."
+    outputs.upToDateWhen { false }
+    doLast {
+        if (!new File(configuredAdbPath).exists()) return
+        try {
+            def listProc = [configuredAdbPath, "devices"].execute()
+            listProc.waitForOrKill(3000)
+            if (listProc.exitValue() != 0) return
+            listProc.in.text.eachLine { line ->
+                def parts = line.trim().split(/\s+/)
+                if (parts.length >= 2 && parts[1] == "device") {
+                    def serial = parts[0]
+                    [8081, 8000].each { port ->
+                        def revProc = [configuredAdbPath, "-s", serial, "reverse", "tcp:${port}", "tcp:${port}"].execute()
+                        revProc.waitForOrKill(3000)
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Non-fatal when no device is attached or ADB is unavailable
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleDebug" || it.name == "installDebug" }.configureEach {
+    dependsOn("adbReversePorts")
 }
