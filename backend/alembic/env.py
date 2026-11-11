@@ -8,7 +8,7 @@ from alembic import context
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.config import settings
-from app.core.database import Base, get_engine
+from app.core.database import Base, get_engine, normalize_database_url
 import app.models  # register all models
 
 config = context.config
@@ -20,10 +20,7 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    db_url = settings.DATABASE_URL
-    if db_url.startswith("postgresql://"):
-        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    return db_url
+    return normalize_database_url(settings.DATABASE_URL)
 
 
 def run_migrations_offline() -> None:
