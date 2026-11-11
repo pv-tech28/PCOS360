@@ -12,7 +12,7 @@ PCOS360 is a multi-user health intelligence platform across FastAPI, React (web)
 * **Mobile App:** React Native + Expo SDK 58 (`mobile/`, Metro bundler on port `8081`)
 * **Backend:** FastAPI, Python, Uvicorn, Pydantic v2 (`http://localhost:8000`)
 * **Auth & Sessions:** Salted `scrypt` password hashing, HS256 signed JWT bearer tokens backed by revocable `user_sessions` rows
-* **Database & ORM:** PostgreSQL (`pcos360_db`), SQLAlchemy 2.0, Psycopg 3 (`psycopg[binary]`), SQLite zero-config local fallback (`backend/pcos360.db`)
+* **Database & ORM:** PostgreSQL (`pcos360_db`, strict fail-fast when configured) or explicit local SQLite (`DATABASE_URL="sqlite:///./pcos360.db"`), SQLAlchemy 2.0, Psycopg 3 (`psycopg[binary]`)
 * **Database Migrations:** Alembic
 
 ---
@@ -82,13 +82,17 @@ The relational schema spans **eight** tables with cascade-delete foreign keys, i
 
 ## 🛠️ Step-by-Step Setup Guide
 
-### 1. Database Setup (PostgreSQL or Local SQLite Fallback)
+### 1. Database Setup (PostgreSQL or Explicit Local SQLite)
 
-Create `pcos360_db` in PostgreSQL if using Postgres:
-```sql
-CREATE DATABASE pcos360_db;
-```
-> **Note:** If PostgreSQL is unavailable locally, PCOS360 automatically falls back to SQLite (`backend/pcos360.db`) for development.
+> **Strict Database Behavior (No Silent Fallback):** If `DATABASE_URL` is configured for PostgreSQL (`postgresql+psycopg://...`, `postgresql://...`, or `postgres://...`) and the database cannot be reached, the backend and Alembic fail explicitly (`DatabaseConnectionError` / HTTP `503` / `/api/health` `"status": "degraded"` with `"PostgreSQL (Unreachable)"`) and **never** fall back silently to SQLite. To use SQLite intentionally for local development, set `DATABASE_URL="sqlite:///./pcos360.db"` in `backend/.env`.
+
+#### Connecting a PostgreSQL Instance
+1. On your PostgreSQL server, create the application role and database (keep database credentials out of git and logs):
+   ```sql
+   CREATE USER pcos360_user WITH PASSWORD '<strong-database-password>';
+   CREATE DATABASE pcos360_db OWNER pcos360_user;
+   ```
+   *(Local quick-test superuser setups can skip `CREATE USER` and run `CREATE DATABASE pcos360_db;` instead.)*
 
 ### 2. Backend Environment Variables (`backend/.env`)
 
@@ -97,7 +101,7 @@ Copy `backend/.env.example` to `backend/.env` and generate a strong `SECRET_KEY`
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Example `backend/.env`:
+Example `backend/.env` (for managed/remote PostgreSQL, append `?sslmode=require`):
 ```env
 PROJECT_NAME="PCOS360 API"
 VERSION="1.0.0"
@@ -111,26 +115,64 @@ PORT=8000
 SECRET_KEY="<paste-generated-random-secret>"
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 
-# PostgreSQL Connection String (falls back to SQLite in local dev if unreachable):
-DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/pcos360_db"
+# PostgreSQL (strict: fails clearly if unreachable; for TLS add ?sslmode=require):
+DATABASE_URL="postgresql+psycopg://<db_user>:<db_password>@<host>:5432/pcos360_db"
+# Or explicitly opt into local SQLite dev mode instead:
+# DATABASE_URL="sqlite:///./pcos360.db"
 
 # Allowed browser/bundler dev origins:
 BACKEND_CORS_ORIGINS='["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://localhost:8081"]'
 ```
 
-### 3. Run Alembic Database Migrations
+### 3. Run Alembic Migrations & Verify `/api/health`
 
-Apply migrations (creates core tables plus `user_sessions` and `is_active`/`is_demo` user flags; marks any legacy passwordless rows as `is_demo=True`):
+Run Alembic **before** starting `uvicorn` or seeding data so `alembic_version` and PostgreSQL tables are created by migrations rather than bypassed:
 ```powershell
 cd backend
 .\venv\Scripts\Activate.ps1
+
+# Optional: inspect generated PostgreSQL DDL without touching the DB
+alembic upgrade head --sql
+
+# Apply migrations to the configured PostgreSQL instance
 alembic upgrade head
+
+# Confirm head revision is active (expected: a1b2c3d4e5f6 (head))
+alembic current
 ```
 
-Optionally seed local demo records (creates an `is_demo=True`, `password_hash=None` record that cannot log in via `/api/auth/login`):
+Start the API and verify `/api/health` reports PostgreSQL connectivity (not SQLite):
 ```powershell
-python seed_data.py
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+# In another shell:
+Invoke-RestMethod http://localhost:8000/api/health
 ```
+Expected `/api/health` response:
+```json
+{
+  "status": "healthy",
+  "service": "PCOS360 Backend",
+  "version": "1.0.0",
+  "database": { "status": "connected", "type": "PostgreSQL" }
+}
+```
+If PostgreSQL is unreachable, `/api/health` returns `"status": "degraded"` with `"database": {"status": "error", "type": "PostgreSQL (Unreachable)", ...}` (with credentials redacted) and DB endpoints return HTTP `503 Database Unavailable`.
+
+#### Intentionally Seed Demo Data or Migrate Existing Local SQLite Data
+* **Fresh demo records (optional):** After `alembic upgrade head` succeeds, run:
+  ```powershell
+  python seed_data.py
+  ```
+  This creates only an `is_demo=True`, `password_hash=None` sample user across the 7 domain tables (blocked from `/api/auth/login`). Real accounts still start empty via `/api/auth/register`.
+* **Migrating existing data from `backend/pcos360.db`:** Do not bypass Alembic. First run `alembic upgrade head` against an empty `pcos360_db` in PostgreSQL, then copy real user rows in foreign-key parent-first order (`users` -> `health_profiles`, `daily_symptoms`, `lifestyle_logs`, `menstrual_cycles`, `lab_reports`, `clinical_records`; omit stale `user_sessions` or ask users to re-sign in), preserving `is_active`/`is_demo`/`password_hash`. Afterward, resync every PostgreSQL `SERIAL` sequence:
+  ```sql
+  SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM users;
+  -- Repeat for health_profiles, daily_symptoms, lifestyle_logs, menstrual_cycles, lab_reports, clinical_records, user_sessions
+  ```
+
+#### PostgreSQL Migration Compatibility Notes
+* Revisions `cbb42492a859` and `a1b2c3d4e5f6` use `sa.func.now()` (emitting PostgreSQL `DEFAULT now()` instead of SQLite-reflected `(CURRENT_TIMESTAMP)`) and guard `sa.inspect(...)` behind `context.is_offline_mode()` so both live `alembic upgrade head` and offline `alembic upgrade head --sql` / `downgrade` target PostgreSQL cleanly.
+* Unlike SQLite, PostgreSQL strictly enforces `FOREIGN KEY ... ON DELETE CASCADE`, native `BOOLEAN`/`TIMESTAMPTZ` types, and `SERIAL` sequences; `Base.metadata.create_all` in `app/main.py` and `seed_data.py` runs automatically only for SQLite so PostgreSQL schema changes remain strictly Alembic-managed.
 
 ### 4. Frontend Environment (`frontend/.env.example`)
 
@@ -209,5 +251,5 @@ While PCOS360 enforces per-account authentication, password hashing (`scrypt`), 
 2. **Token Storage Hardening:** Web currently stores bearer tokens in `localStorage` and mobile stores them in `AsyncStorage`. Production deployments should move web sessions to `HttpOnly; Secure; SameSite` cookies (with CSRF protection) and mobile tokens to hardware-backed `expo-secure-store`.
 3. **Account Lifecycle Flows:** Email verification, password reset/rotation, active session list management ("sign out all devices"), and full GDPR/HIPAA account deletion workflows are not yet implemented.
 4. **Rate Limiting Scale-Out:** Auth throttling currently uses an in-memory per-process sliding window (`backend/app/core/rate_limit.py`); multi-worker production deployments must back this with a shared store such as Redis and set `TRUST_PROXY_HEADERS=true` only behind a trusted reverse proxy.
-5. **Secrets, CORS & Startup Config:** Production must set `ENVIRONMENT="production"` with a strong externally managed `SECRET_KEY`, restrict `BACKEND_CORS_ORIGINS` strictly to production origins, disable automatic SQLite dev fallback in production, and prune expired `user_sessions` periodically.
+5. **Secrets, CORS & Startup Config:** Production must set `ENVIRONMENT="production"` with a strong externally managed `SECRET_KEY`, restrict `BACKEND_CORS_ORIGINS` strictly to production origins, enforce PostgreSQL (`postgresql+psycopg://...?sslmode=require`) rather than SQLite, and prune expired `user_sessions` periodically.
 6. **Real Server-Side Lab OCR, Encryption at Rest & Compliance:** Sensitive health data is not field-encrypted at rest yet, nor are HIPAA/GDPR audit logs or server-side PDF/image OCR parsing implemented (web and mobile lab decoders load editable/sample preview values only; all biomarker summaries are strictly **informational and not diagnostic**).
