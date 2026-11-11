@@ -444,5 +444,83 @@ class TestPCOS360AuthAndPrivacy(unittest.TestCase):
         self.assertIn("Retry-After", burst_blocked.headers)
 
 
+class TestPostgreSQLFailFastConfig(unittest.TestCase):
+    """Verify PostgreSQL unreachable fail-fast behavior and credential redaction."""
+
+    def test_postgresql_unreachable_fails_without_sqlite_fallback_or_password_leak(self):
+        from app.core.config import settings
+        from app.core.database import (
+            DatabaseConnectionError,
+            get_db_status,
+            get_engine,
+            mask_database_url,
+            normalize_database_url,
+            reset_engine,
+        )
+        from app.main import app
+
+        self.assertEqual(
+            normalize_database_url("postgres://u:p@db.example:5432/pcos360_db?sslmode=require"),
+            "postgresql+psycopg://u:p@db.example:5432/pcos360_db?sslmode=require",
+        )
+
+        secret_pw = "SuperSecretPgPass_987"
+        fake_pg_url = f"postgresql://postgres:{secret_pw}@127.0.0.1:59999/pcos360_db"
+        self.assertNotIn(secret_pw, mask_database_url(fake_pg_url))
+
+        orig_url = settings.DATABASE_URL
+        orig_overrides = dict(app.dependency_overrides)
+        orig_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory(prefix="pcos360_nofallback_") as empty_dir:
+            try:
+                os.chdir(empty_dir)
+                app.dependency_overrides.clear()
+                settings.DATABASE_URL = fake_pg_url
+                reset_engine()
+
+                with self.assertRaises(DatabaseConnectionError) as ctx:
+                    get_engine()
+                err_msg = str(ctx.exception)
+                self.assertIn("Refusing silent SQLite fallback", err_msg)
+                self.assertNotIn(secret_pw, err_msg)
+                self.assertFalse(
+                    os.path.exists(os.path.join(empty_dir, "pcos360.db")),
+                    "Unreachable PostgreSQL must never create or fall back to pcos360.db",
+                )
+
+                db_status = get_db_status()
+                self.assertEqual(db_status["status"], "error")
+                self.assertEqual(db_status["type"], "PostgreSQL (Unreachable)")
+                self.assertNotIn(secret_pw, db_status["detail"])
+
+                client = TestClient(app, raise_server_exceptions=False)
+                health_res = client.get("/api/health")
+                self.assertEqual(health_res.status_code, 200)
+                health_body = health_res.json()
+                self.assertEqual(health_body["status"], "degraded")
+                self.assertEqual(health_body["database"]["status"], "error")
+                self.assertEqual(health_body["database"]["type"], "PostgreSQL (Unreachable)")
+                self.assertNotIn(secret_pw, health_res.text)
+
+                reg_res = client.post(
+                    "/api/auth/register",
+                    json={
+                        "full_name": "Should Fail Fast",
+                        "email": "pgdown@example.com",
+                        "password": "StrongPassword!123",
+                    },
+                )
+                self.assertEqual(reg_res.status_code, 503)
+                self.assertEqual(reg_res.json()["error"], "Database Unavailable")
+                self.assertNotIn(secret_pw, reg_res.text)
+                self.assertFalse(os.path.exists(os.path.join(empty_dir, "pcos360.db")))
+            finally:
+                os.chdir(orig_cwd)
+                settings.DATABASE_URL = orig_url
+                reset_engine()
+                app.dependency_overrides.clear()
+                app.dependency_overrides.update(orig_overrides)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
