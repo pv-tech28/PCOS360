@@ -1,28 +1,14 @@
-import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-
-# Configurable PostgreSQL Database URL via environment variable
-# e.g.: postgresql://postgres:password@localhost:5432/pcos360_db
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pcos360.db")
-
-# If SQLite is used, ensure check_same_thread is False
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    echo=False
+"""Shared database helpers delegating to `app.core.database` (psycopg v3 + SSL)."""
+from app.core.config import settings
+from app.core.database import (
+    Base,
+    SessionLocal,
+    get_db,
+    get_engine,
+    normalize_database_url,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+DATABASE_URL = normalize_database_url(settings.DATABASE_URL)
+engine = get_engine()
 
-Base = declarative_base()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+__all__ = ["DATABASE_URL", "Base", "SessionLocal", "engine", "get_db", "get_engine"]

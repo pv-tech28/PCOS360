@@ -1,5 +1,6 @@
 import logging
 import re
+import urllib.parse
 from typing import Generator
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
@@ -18,13 +19,52 @@ class DatabaseConnectionError(RuntimeError):
     """Raised when the configured database engine is unreachable or invalid."""
 
 
+def _encode_authority_special_chars(url: str) -> str:
+    """Escape unencoded '@' characters inside a URL password using percent-encoding."""
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    if "/" in rest:
+        authority, tail = rest.split("/", 1)
+        tail = "/" + tail
+    elif "?" in rest:
+        authority, tail = rest.split("?", 1)
+        tail = "?" + tail
+    else:
+        authority, tail = rest, ""
+
+    if authority.count("@") <= 1 or ":" not in authority:
+        return url
+
+    userinfo, host_port = authority.rsplit("@", 1)
+    username, password = userinfo.split(":", 1)
+    safe_password = urllib.parse.quote(urllib.parse.unquote(password), safe="")
+    return f"{scheme}://{username}:{safe_password}@{host_port}{tail}"
+
+
 def normalize_database_url(raw_url: str) -> str:
-    """Normalize PostgreSQL scheme aliases to SQLAlchemy's psycopg v3 driver."""
+    """Normalize PostgreSQL scheme aliases to psycopg v3, encode '@' in passwords, and ensure Supabase SSL."""
     cleaned = (raw_url or "").strip()
-    if cleaned.startswith("postgres://"):
-        return cleaned.replace("postgres://", "postgresql+psycopg://", 1)
-    if cleaned.startswith("postgresql://"):
-        return cleaned.replace("postgresql://", "postgresql+psycopg://", 1)
+    for legacy_prefix in ("postgresql+psycopg2://", "postgres://", "postgresql://"):
+        if cleaned.startswith(legacy_prefix):
+            cleaned = cleaned.replace(legacy_prefix, "postgresql+psycopg://", 1)
+            break
+
+    if not cleaned.startswith("postgresql+psycopg://"):
+        return cleaned
+
+    cleaned = _encode_authority_special_chars(cleaned)
+
+    try:
+        parsed = urllib.parse.urlsplit(cleaned)
+        host = (parsed.hostname or "").lower()
+        query_params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        if ("supabase.com" in host or "supabase.co" in host) and "sslmode" not in query_params:
+            sep = "&" if parsed.query else "?"
+            cleaned = f"{cleaned}{sep}sslmode=require"
+    except Exception:
+        pass
+
     return cleaned
 
 
@@ -34,7 +74,7 @@ def mask_database_url(raw_url: str) -> str:
     try:
         return make_url(normalized).render_as_string(hide_password=True)
     except Exception:
-        return re.sub(r"://([^:/@]+):([^@]+)@", r"://\1:***@", normalized)
+        return re.sub(r"://([^:/@]+):(.+)@([^/@]+)", r"://\1:***@\\3", normalized)
 
 
 def redact_db_error(exc: Exception, raw_url: str) -> str:
@@ -44,6 +84,9 @@ def redact_db_error(exc: Exception, raw_url: str) -> str:
         pwd = make_url(normalize_database_url(raw_url)).password
         if pwd:
             text_msg = text_msg.replace(pwd, "***")
+            decoded_pwd = urllib.parse.unquote(pwd)
+            if decoded_pwd:
+                text_msg = text_msg.replace(decoded_pwd, "***")
     except Exception:
         pass
     return text_msg
