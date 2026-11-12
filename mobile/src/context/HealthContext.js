@@ -14,6 +14,7 @@ import {
 import {
   apiClient,
   getApiBaseUrl,
+  getDefaultApiBaseUrl,
   setApiBaseUrl,
   loadAuthToken,
   clearAuthToken,
@@ -445,14 +446,13 @@ export function HealthProvider({ children }) {
       try {
         const savedUrl = await AsyncStorage.getItem(API_URL_STORAGE_KEY);
         if (savedUrl) {
-          setApiBaseUrl(savedUrl);
-          if (active) setApiServerUrlState(savedUrl);
+          const appliedUrl = setApiBaseUrl(savedUrl);
+          if (active) setApiServerUrlState(appliedUrl);
         }
       } catch {
         // ignore
       }
 
-      await checkBackendStatus();
       const token = await loadAuthToken();
 
       if (!token) {
@@ -460,12 +460,15 @@ export function HealthProvider({ children }) {
           clearAccountState();
           setAuthState('signed_out');
         }
+        // Check backend reachability asynchronously so WelcomeScreen opens immediately offline.
+        void checkBackendStatus();
         return;
       }
 
       try {
-        const user = await apiClient.getMe();
+        const user = await apiClient.getMe({ timeoutMs: 3500 });
         if (active && user) {
+          setDbConnected(true);
           await hydrateAuthenticatedUser(user);
         }
       } catch (err) {
@@ -847,14 +850,19 @@ export function HealthProvider({ children }) {
     }
   };
 
-  // Change backend URL (for Android emulator or physical device on LAN)
+  // Change backend URL (for physical device on Wi-Fi LAN, USB adb reverse, or Android emulator)
   const updateApiUrl = async (newUrl) => {
-    const normalized = (newUrl || '').trim().replace(/\/+$/, '');
-    setApiBaseUrl(normalized);
-    setApiServerUrlState(normalized);
-    await AsyncStorage.setItem(API_URL_STORAGE_KEY, normalized);
+    const appliedUrl = setApiBaseUrl(newUrl);
+    setApiServerUrlState(appliedUrl);
+    if ((newUrl || '').trim()) {
+      await AsyncStorage.setItem(API_URL_STORAGE_KEY, appliedUrl);
+    } else {
+      await AsyncStorage.removeItem(API_URL_STORAGE_KEY);
+    }
     return await checkBackendStatus();
   };
+
+  const defaultApiUrl = getDefaultApiBaseUrl();
 
   return (
     <HealthContext.Provider
@@ -884,6 +892,7 @@ export function HealthProvider({ children }) {
         setLastError,
         checkBackendStatus,
         apiServerUrl,
+        defaultApiUrl,
         updateApiUrl,
       }}
     >
