@@ -1,54 +1,42 @@
 import React from 'react';
 
-export default function Logo({ size = 'md', showTagline = false, className = '' }) {
-  const iconSizes = {
-    sm: 'w-7 h-7',
-    md: 'w-9 h-9',
-    lg: 'w-12 h-12',
-    xl: 'w-16 h-16'
-  };
+export function BrandMark({ className = '' }) {
+  return (
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={className}
+    >
+      <circle cx="24" cy="24" r="22" fill="#F1EAF8" />
+      <circle cx="24" cy="24" r="18" stroke="#D8C9E7" strokeWidth="1.4" />
+      <path d="M36.2 12.8a17.7 17.7 0 0 1 5.7 11.8" stroke="#7950A8" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="36" cy="12.7" r="2.8" fill="#E8B8D0" stroke="#fff" strokeWidth="1.2" />
+      <path d="M23.5 22.7C19.4 13.3 11.1 12.9 10 18.2c-1 4.8 5.6 7.8 13.1 6.5" fill="#fff" stroke="#7950A8" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M24.5 22.7c4.1-9.4 12.4-9.8 13.5-4.5 1 4.8-5.6 7.8-13.1 6.5" fill="#fff" stroke="#7950A8" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M23.3 25.1c-7.7 1.4-10.2 7.4-6.3 9.4 3.4 1.8 6.3-2.6 7-7.9" fill="#E8B8D0" stroke="#7950A8" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M24.7 25.1c7.7 1.4 10.2 7.4 6.3 9.4-3.4 1.8-6.3-2.6-7-7.9" fill="#E8B8D0" stroke="#7950A8" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M24 19.7v11.1" stroke="#5E3B87" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="24" cy="24.7" r="2.1" fill="#7950A8" />
+    </svg>
+  );
+}
 
-  const textSizes = {
-    sm: 'text-lg',
-    md: 'text-xl',
-    lg: 'text-2xl',
-    xl: 'text-3xl'
-  };
+export default function Logo({ size = 'md', showTagline = false, className = '' }) {
+  const iconSizes = { sm: 'w-8 h-8', md: 'w-10 h-10', lg: 'w-14 h-14', xl: 'w-[4.5rem] h-[4.5rem]' };
+  const textSizes = { sm: 'text-lg', md: 'text-xl', lg: 'text-2xl', xl: 'text-3xl' };
+  const safeSize = iconSizes[size] ? size : 'md';
 
   return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
-      <div className={`${iconSizes[size]} relative flex items-center justify-center shrink-0`}>
-        {/* Soft elegant butterfly / organic lotus icon */}
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
-          <circle cx="24" cy="24" r="22" fill="#EDE5F7" fillOpacity="0.7" />
-          {/* Left upper wing */}
-          <path d="M24 23C21 16 13 14 11 20C9.5 24.5 15 28 23 25" stroke="#7950A8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="#FAF9FC" />
-          {/* Right upper wing */}
-          <path d="M24 23C27 16 35 14 37 20C38.5 24.5 33 28 25 25" stroke="#7950A8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="#FAF9FC" />
-          {/* Left lower wing */}
-          <path d="M23 25C17 28 14 34 18 37C21 39 23.5 33 24 27" stroke="#7950A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="#E8B8D0" fillOpacity="0.4" />
-          {/* Right lower wing */}
-          <path d="M25 25C31 28 34 34 30 37C27 39 24.5 33 24 27" stroke="#7950A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="#E8B8D0" fillOpacity="0.4" />
-          {/* Center body */}
-          <ellipse cx="24" cy="25" rx="1.8" ry="6" fill="#7950A8" />
-          {/* Antennae */}
-          <path d="M23 19C21.5 17 20 16.5 19 17" stroke="#7950A8" strokeWidth="1.6" strokeLinecap="round" />
-          <path d="M25 19C26.5 17 28 16.5 29 17" stroke="#7950A8" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-      </div>
-
+    <div className={`flex items-center gap-2.5 select-none ${className}`}>
+      <BrandMark className={`${iconSizes[safeSize]} shrink-0`} />
       <div className="flex flex-col">
-        <div className="flex items-center gap-1 font-bold tracking-tight text-[#292431]">
-          <span className={`${textSizes[size]} font-extrabold bg-gradient-to-r from-[#7950A8] to-[#9B6DC4] bg-clip-text text-transparent`}>
-            PCOS
-          </span>
-          <span className={`${textSizes[size]} text-[#292431]`}>360</span>
+        <div className={`${textSizes[safeSize]} flex items-center gap-1 font-extrabold leading-none tracking-tight`}>
+          <span className="bg-gradient-to-r from-[#7950A8] to-[#9B6DC4] bg-clip-text text-transparent">PCOS</span>
+          <span className="text-[#292431]">360</span>
         </div>
-        {showTagline && (
-          <span className="text-[11px] tracking-wide text-[#77717F] font-medium -mt-0.5">
-            Beyond Symptoms
-          </span>
-        )}
+        {showTagline && <span className="mt-1 text-[10px] font-semibold tracking-[0.12em] text-[#77717F]">BEYOND SYMPTOMS</span>}
       </div>
     </div>
   );
