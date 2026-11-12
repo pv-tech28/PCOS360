@@ -5,10 +5,17 @@ import Constants from 'expo-constants';
 
 const AUTH_TOKEN_KEY = '@pcos360_auth_token_v1';
 
-// Auto-resolve backend host from Metro/Expo dev server URL:
-// - Physical device via USB (`adb reverse`): localhost -> http://localhost:8000
-// - Physical device via Wi-Fi LAN: <PC_IP> -> http://<PC_IP>:8000
-// - Android Emulator: 10.0.2.2 -> http://10.0.2.2:8000
+export const normalizeApiBaseUrl = (rawUrl) => {
+  const trimmed = (rawUrl || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `http://${trimmed}`;
+};
+
+// Auto-resolve backend host:
+// 1. Metro dev server host when running via USB (`adb reverse` -> localhost) or Wi-Fi Expo Go
+// 2. Build-time EXPO_PUBLIC_API_URL from mobile/.env (for standalone Release APK over Wi-Fi)
+// 3. Emulator host fallback (10.0.2.2) or localhost
 const resolveDefaultHost = () => {
   if (Platform.OS !== 'android') {
     return 'http://localhost:8000';
@@ -34,7 +41,12 @@ const resolveDefaultHost = () => {
     }
   }
 
-  return 'http://10.0.2.2:8000';
+  const configuredPublicUrl = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_URL);
+  if (configuredPublicUrl) {
+    return configuredPublicUrl;
+  }
+
+  return Constants.isDevice ? 'http://localhost:8000' : 'http://10.0.2.2:8000';
 };
 
 const DEFAULT_HOST = resolveDefaultHost();
@@ -43,10 +55,12 @@ let currentBaseUrl = DEFAULT_HOST;
 let cachedToken = null;
 let unauthorizedHandler = null;
 
+export const getDefaultApiBaseUrl = () => DEFAULT_HOST;
+
 export const setApiBaseUrl = (newUrl) => {
-  if (newUrl) {
-    currentBaseUrl = newUrl.trim().replace(/\/+$/, '');
-  }
+  const normalized = normalizeApiBaseUrl(newUrl);
+  currentBaseUrl = normalized || DEFAULT_HOST;
+  return currentBaseUrl;
 };
 
 export const getApiBaseUrl = () => currentBaseUrl;
@@ -100,7 +114,12 @@ function formatErrorDetail(detail, fallbackText) {
 
 async function request(endpoint, options = {}) {
   const url = `${currentBaseUrl}${endpoint}`;
-  const { skipAuth = false, headers: customHeaders = {}, ...fetchOptions } = options;
+  const {
+    skipAuth = false,
+    timeoutMs = 8000,
+    headers: customHeaders = {},
+    ...fetchOptions
+  } = options;
 
   let token = cachedToken;
   if (!skipAuth && !token) {
@@ -118,7 +137,7 @@ async function request(endpoint, options = {}) {
   let timeoutId;
   try {
     const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), 8000);
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(url, {
       ...fetchOptions,
@@ -165,10 +184,10 @@ async function request(endpoint, options = {}) {
 }
 
 export const apiClient = {
-  // Base Health Check (public)
-  async checkHealth() {
+  // Base Health Check (public, fast timeout so offline startup never stalls)
+  async checkHealth(options = {}) {
     try {
-      return await request('/api/health', { skipAuth: true });
+      return await request('/api/health', { skipAuth: true, timeoutMs: 2500, ...options });
     } catch {
       return null;
     }
@@ -216,8 +235,8 @@ export const apiClient = {
     }
   },
 
-  async getMe() {
-    return await request('/api/auth/me');
+  async getMe(options = {}) {
+    return await request('/api/auth/me', options);
   },
 
   async updateMe({ fullName }) {
