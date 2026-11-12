@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Bell, Menu } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import typography from '../../theme/typography';
+import BrandMark from './BrandMark';
 
 export default function Header({
   title,
@@ -51,11 +52,7 @@ export default function Header({
       <View style={styles.center}>
         {showLogo ? (
           <View style={styles.logoRow}>
-            {/* Butterfly Shape Icon */}
-            <View style={styles.butterflyIcon}>
-              <View style={[styles.wing, styles.leftWing]} />
-              <View style={[styles.wing, styles.rightWing]} />
-            </View>
+            <BrandMark size={25} />
             <Text style={styles.logoText}>PCOS360</Text>
           </View>
         ) : (
@@ -138,28 +135,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  butterflyIcon: {
-    width: 20,
-    height: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wing: {
-    width: 8,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.6,
-    borderColor: colors.primary,
-  },
-  leftWing: {
-    transform: [{ rotate: '-25deg' }],
-    marginRight: -1,
-  },
-  rightWing: {
-    transform: [{ rotate: '25deg' }],
-    marginLeft: -1,
   },
   logoText: {
     fontSize: 17,

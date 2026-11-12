@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowRight } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import Button from '../../components/common/Button';
+import BrandMark from '../../components/common/BrandMark';
 import { useHealth } from '../../context/HealthContext';
 
 export default function WelcomeScreen({ navigation }) {
@@ -13,10 +14,7 @@ export default function WelcomeScreen({ navigation }) {
       <View style={styles.container}>
         {/* Top Butterfly & Logo */}
         <View style={styles.brandContainer}>
-          <View style={styles.butterflyIcon}>
-            <View style={[styles.wing, styles.leftWing]} />
-            <View style={[styles.wing, styles.rightWing]} />
-          </View>
+          <BrandMark size={58} />
           <Text style={styles.brandTitle}>PCOS360</Text>
           <Text style={styles.tagline}>Beyond Symptoms</Text>
           <Text style={styles.subtitle}>
@@ -87,29 +85,6 @@ const styles = StyleSheet.create({
   brandContainer: {
     alignItems: 'center',
     marginTop: 20,
-  },
-  butterflyIcon: {
-    width: 38,
-    height: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  wing: {
-    width: 14,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2.5,
-    borderColor: colors.primary,
-  },
-  leftWing: {
-    transform: [{ rotate: '-25deg' }],
-    marginRight: -2,
-  },
-  rightWing: {
-    transform: [{ rotate: '25deg' }],
-    marginLeft: -2,
   },
   brandTitle: {
     fontSize: 28,
