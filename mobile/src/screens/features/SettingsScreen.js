@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { useHealth } from '../../context/HealthContext';
+import { getApiBaseUrl } from '../../services/api';
 
 export default function SettingsScreen({ navigation }) {
   const {
@@ -34,22 +35,29 @@ export default function SettingsScreen({ navigation }) {
     dbConnected,
     checkBackendStatus,
     apiServerUrl,
+    defaultApiUrl,
     updateApiUrl,
   } = useHealth();
 
   const [inputUrl, setInputUrl] = useState(apiServerUrl);
   const [isTesting, setIsTesting] = useState(false);
 
+  useEffect(() => {
+    setInputUrl(apiServerUrl);
+  }, [apiServerUrl]);
+
   const handleTestConnection = async () => {
     setIsTesting(true);
     const isHealthy = await updateApiUrl(inputUrl);
+    const activeUrl = getApiBaseUrl();
+    setInputUrl(activeUrl);
     setIsTesting(false);
     if (isHealthy) {
-      Alert.alert('Connection Successful', `Connected to PCOS360 FastAPI Backend at ${inputUrl}`);
+      Alert.alert('Connection Successful', `Connected to PCOS360 FastAPI Backend at ${activeUrl}`);
     } else {
       Alert.alert(
         'Connection Failed',
-        `Could not reach ${inputUrl}. If using Android Emulator, use http://10.0.2.2:8000. If using a physical phone with USB adb reverse, use http://localhost:8000, or over Wi-Fi use your computer LAN IP (e.g. http://192.168.1.X:8000).`
+        `Could not reach ${activeUrl}. Over Wi-Fi without USB, use your computer LAN IP (e.g. ${defaultApiUrl}). With USB adb reverse, use http://localhost:8000.`
       );
     }
   };
@@ -144,8 +152,9 @@ export default function SettingsScreen({ navigation }) {
               placeholder="http://10.0.2.2:8000"
             />
             <Text style={styles.helperText}>
-              • Android Emulator: http://10.0.2.2:8000{'\n'}
-              • Physical Phone (Expo Go): http://&lt;PC_IP&gt;:8000
+              • Physical Phone (Wi-Fi LAN): http://&lt;PC_LAN_IP&gt;:8000{'\n'}
+              • Physical Phone (USB adb reverse): http://localhost:8000{'\n'}
+              • Android Emulator: http://10.0.2.2:8000
             </Text>
 
             <Button

@@ -60,6 +60,13 @@ export default function WelcomeScreen({ navigation }) {
           >
             <Text style={styles.skipText}>Try Sample Demo (Local Preview Only)</Text>
           </Pressable>
+
+          <Pressable
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.serverButton}
+          >
+            <Text style={styles.serverText}>Configure Server URL</Text>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -209,6 +216,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.primary,
+  },
+  serverButton: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  serverText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
 });
 
