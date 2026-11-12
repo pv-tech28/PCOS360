@@ -200,13 +200,20 @@ npm run dev -- --host 0.0.0.0
 ```
 * **Web App:** `http://localhost:5173`
 
-#### Terminal 3 – Mobile App (React Native + Expo)
-```powershell
-cd mobile
-npm install
-npx expo start --clear
-```
-* On a USB-connected Android device, run `adb reverse tcp:8081 tcp:8081` and `adb reverse tcp:8000 tcp:8000` (configured automatically in `mobile/android/app/build.gradle`), or configure your LAN IP (e.g., `http://<PC_LAN_IP>:8000`) directly in the app's **Settings** screen.
+#### Terminal 3 – Mobile App (Android Studio Standalone or Metro Dev)
+
+* **Standalone / Without USB (`mobile/.env`):** Copy `mobile/.env.example` to `mobile/.env` and set `EXPO_PUBLIC_API_URL=http://<PC_LAN_IP>:8000` so installed APKs connect over Wi-Fi without needing USB `adb reverse`.
+* **Running from Android Studio (Standalone by Default):**
+  1. Open **`mobile/android`** (not the repo root) in Android Studio and wait for Gradle Sync to finish.
+  2. Connect your phone via USB (with **USB Debugging** enabled) and select it in Android Studio's device dropdown.
+  3. Click **Run (`▶`)** (`app` configuration). `pcos360.standaloneDebug=true` in `mobile/android/gradle.properties` embeds `index.android.bundle` directly into the APK (`debug` or `release`), so after installation you can unplug the USB cable and run the app normally without Metro.
+  4. Ensure the FastAPI backend is running (`--host 0.0.0.0 --port 8000`) on the same Wi-Fi network, or tap **Configure Server URL** on the Welcome/Settings screen to update the IP.
+* **Live Metro Hot-Reload Mode (Optional):** Set `pcos360.standaloneDebug=false` in `mobile/android/gradle.properties`, then run:
+  ```powershell
+  cd mobile
+  npm install
+  npx expo start --clear
+  ```
 * Both Web and Mobile start on the Sign In / Registration gate for real user accounts and isolate Sample Demo Mode cleanly in local memory/storage without writing demo edits to any user account.
 
 ---
