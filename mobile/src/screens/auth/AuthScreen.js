@@ -16,6 +16,7 @@ import typography from '../../theme/typography';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import { useHealth } from '../../context/HealthContext';
+import { isLocalOrDevUrl } from '../../services/api';
 
 export default function AuthScreen({ navigation, route }) {
   const initialMode = route?.params?.mode === 'register';
@@ -113,10 +114,14 @@ export default function AuthScreen({ navigation, route }) {
               <WifiOff size={16} color="#92400E" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.offlineText}>
-                  Backend unreachable at {apiServerUrl}
+                  {isLocalOrDevUrl(apiServerUrl)
+                    ? `Backend unreachable at ${apiServerUrl}`
+                    : 'Connecting to PCOS360 Cloud Service...'}
                 </Text>
                 <Text style={styles.offlineSub}>
-                  Tap here to configure your FastAPI server URL in Settings
+                  {isLocalOrDevUrl(apiServerUrl)
+                    ? 'Tap here to configure your FastAPI server URL in Settings'
+                    : 'Cloud server may be waking up (cold start). Tap here to inspect connection status.'}
                 </Text>
               </View>
             </Pressable>

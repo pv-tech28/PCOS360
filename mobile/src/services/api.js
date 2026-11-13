@@ -9,16 +9,35 @@ export const normalizeApiBaseUrl = (rawUrl) => {
   const trimmed = (rawUrl || '').trim().replace(/\/+$/, '');
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.includes('.') && !/^\d+\.\d+\.\d+\.\d+/.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
   return `http://${trimmed}`;
 };
 
+export const isLocalOrDevUrl = (url) => {
+  if (!url) return false;
+  return /localhost|127\.0\.0\.1|10\.0\.2\.2|192\.168\.\d+\.\d+|:8000|:8081/i.test(url);
+};
+
 // Auto-resolve backend host:
-// 1. Metro dev server host when running via USB (`adb reverse` -> localhost) or Wi-Fi Expo Go
-// 2. Build-time EXPO_PUBLIC_API_URL from mobile/.env (for standalone Release APK over Wi-Fi)
-// 3. Emulator host fallback (10.0.2.2) or localhost
+// 1. Build-time EXPO_PUBLIC_API_URL (Render HTTPS production origin)
+// 2. Production build (!__DEV__): never falls back to local laptop IPs
+// 3. Local Development fallbacks: Metro dev server host (`adb reverse` -> localhost) or Wi-Fi Expo Go
 const resolveDefaultHost = () => {
+  const configuredPublicUrl = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_URL);
+  if (configuredPublicUrl && /^https:\/\//i.test(configuredPublicUrl)) {
+    return configuredPublicUrl;
+  }
+
+  const isProduction = typeof __DEV__ !== 'undefined' && !__DEV__;
+  if (isProduction) {
+    if (configuredPublicUrl) return configuredPublicUrl;
+    return 'https://pcos360-backend.onrender.com';
+  }
+
   if (Platform.OS !== 'android') {
-    return 'http://localhost:8000';
+    return configuredPublicUrl || 'http://localhost:8000';
   }
 
   const scriptURL =
@@ -26,7 +45,7 @@ const resolveDefaultHost = () => {
     NativeModules.SourceCode?.scriptURL;
   if (scriptURL && /^https?:\/\//i.test(scriptURL)) {
     const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
-    if (match?.[1]) {
+    if (match?.[1] && match[1] !== 'localhost') {
       return `http://${match[1]}:8000`;
     }
   }
@@ -36,12 +55,11 @@ const resolveDefaultHost = () => {
     Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const host = hostUri.split(':')[0];
-    if (host) {
+    if (host && host !== 'localhost') {
       return `http://${host}:8000`;
     }
   }
 
-  const configuredPublicUrl = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_URL);
   if (configuredPublicUrl) {
     return configuredPublicUrl;
   }
@@ -116,7 +134,7 @@ async function request(endpoint, options = {}) {
   const url = `${currentBaseUrl}${endpoint}`;
   const {
     skipAuth = false,
-    timeoutMs = 8000,
+    timeoutMs = 20000,
     headers: customHeaders = {},
     ...fetchOptions
   } = options;
@@ -184,10 +202,10 @@ async function request(endpoint, options = {}) {
 }
 
 export const apiClient = {
-  // Base Health Check (public, fast timeout so offline startup never stalls)
+  // Base Health Check (public, graceful timeout for cloud cold starts)
   async checkHealth(options = {}) {
     try {
-      return await request('/api/health', { skipAuth: true, timeoutMs: 2500, ...options });
+      return await request('/api/health', { skipAuth: true, timeoutMs: 6000, ...options });
     } catch {
       return null;
     }

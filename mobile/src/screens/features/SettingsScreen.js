@@ -23,7 +23,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { useHealth } from '../../context/HealthContext';
-import { getApiBaseUrl } from '../../services/api';
+import { getApiBaseUrl, isLocalOrDevUrl } from '../../services/api';
 
 export default function SettingsScreen({ navigation }) {
   const {
@@ -55,10 +55,25 @@ export default function SettingsScreen({ navigation }) {
     if (isHealthy) {
       Alert.alert('Connection Successful', `Connected to PCOS360 FastAPI Backend at ${activeUrl}`);
     } else {
+      const isLocal = isLocalOrDevUrl(activeUrl);
       Alert.alert(
         'Connection Failed',
-        `Could not reach ${activeUrl}. Over Wi-Fi without USB, use your computer LAN IP (e.g. ${defaultApiUrl}). With USB adb reverse, use http://localhost:8000.`
+        isLocal
+          ? `Could not reach ${activeUrl}. Over Wi-Fi without USB, use your computer LAN IP (e.g. ${defaultApiUrl}). With USB adb reverse, use http://localhost:8000.`
+          : `Could not reach cloud backend at ${activeUrl}. Verify your internet connection or allow 30 seconds for the cloud server to spin up.`
       );
+    }
+  };
+
+  const handleResetDefaultUrl = async () => {
+    setIsTesting(true);
+    const isHealthy = await updateApiUrl(defaultApiUrl);
+    setInputUrl(getApiBaseUrl());
+    setIsTesting(false);
+    if (isHealthy) {
+      Alert.alert('Reset Complete', `Connected to default API at ${defaultApiUrl}`);
+    } else {
+      Alert.alert('Reset Complete', `Reset URL to ${defaultApiUrl}.`);
     }
   };
 
@@ -152,19 +167,33 @@ export default function SettingsScreen({ navigation }) {
               placeholder="http://10.0.2.2:8000"
             />
             <Text style={styles.helperText}>
-              • Physical Phone (Wi-Fi LAN): http://&lt;PC_LAN_IP&gt;:8000{'\n'}
-              • Physical Phone (USB adb reverse): http://localhost:8000{'\n'}
-              • Android Emulator: http://10.0.2.2:8000
+              {isLocalOrDevUrl(defaultApiUrl) ? (
+                `• Physical Phone (Wi-Fi LAN): http://<PC_LAN_IP>:8000\n• Physical Phone (USB adb reverse): http://localhost:8000\n• Android Emulator: http://10.0.2.2:8000`
+              ) : (
+                `• Production Cloud Backend: ${defaultApiUrl}\n• Ready for any cellular/Wi-Fi network without laptop or USB.`
+              )}
             </Text>
 
-            <Button
-              title="Test & Save Connection"
-              icon={RefreshCw}
-              size="small"
-              loading={isTesting}
-              onPress={handleTestConnection}
-              style={{ marginTop: 10 }}
-            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <Button
+                title="Test Connection"
+                icon={RefreshCw}
+                size="small"
+                loading={isTesting}
+                onPress={handleTestConnection}
+                style={{ flex: 1 }}
+              />
+              {inputUrl !== defaultApiUrl && (
+                <Button
+                  title="Reset to Default"
+                  variant="outline"
+                  size="small"
+                  disabled={isTesting}
+                  onPress={handleResetDefaultUrl}
+                  style={{ flex: 1 }}
+                />
+              )}
+            </View>
           </View>
         </Card>
 

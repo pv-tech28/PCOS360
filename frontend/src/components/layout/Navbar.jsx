@@ -123,8 +123,8 @@ export default function Navbar({ onMenuToggle }) {
           }`}
           title={
             apiStatus.connected
-              ? `Connected to FastAPI backend (${apiStatus.service} v${apiStatus.version}) on http://localhost:8000`
-              : 'Connecting to backend API on http://localhost:8000...'
+              ? `Connected to FastAPI backend (${apiStatus.service} v${apiStatus.version})`
+              : 'Connecting to backend API...'
           }
         >
           <span

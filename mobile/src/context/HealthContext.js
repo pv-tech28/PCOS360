@@ -16,6 +16,7 @@ import {
   getApiBaseUrl,
   getDefaultApiBaseUrl,
   setApiBaseUrl,
+  isLocalOrDevUrl,
   loadAuthToken,
   clearAuthToken,
   setUnauthorizedHandler,
@@ -445,7 +446,14 @@ export function HealthProvider({ children }) {
     async function initMobileSession() {
       try {
         const savedUrl = await AsyncStorage.getItem(API_URL_STORAGE_KEY);
-        if (savedUrl) {
+        const defaultUrl = getDefaultApiBaseUrl();
+        // If savedUrl is a legacy local development IP (192.168.*, localhost, 10.0.2.2) and the build has a cloud HTTPS URL,
+        // automatically clear the obsolete local override and adopt the cloud URL.
+        if (savedUrl && isLocalOrDevUrl(savedUrl) && /^https:\/\//i.test(defaultUrl)) {
+          await AsyncStorage.removeItem(API_URL_STORAGE_KEY);
+          const appliedUrl = setApiBaseUrl(defaultUrl);
+          if (active) setApiServerUrlState(appliedUrl);
+        } else if (savedUrl) {
           const appliedUrl = setApiBaseUrl(savedUrl);
           if (active) setApiServerUrlState(appliedUrl);
         }

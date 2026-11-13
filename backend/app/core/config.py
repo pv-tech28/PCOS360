@@ -40,7 +40,31 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://localhost:8081",
+        "https://pcos360.vercel.app",
+        "https://pcos360.onrender.com",
     ]
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def validate_debug(cls, v: Union[bool, str, None], info) -> bool:
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.strip().lower() in ("true", "1", "yes")
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        return env != "production"
+
+    @field_validator("TRUST_PROXY_HEADERS", mode="before")
+    @classmethod
+    def validate_trust_proxy_headers(cls, v: Union[bool, str, None], info) -> bool:
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.strip().lower() in ("true", "1", "yes")
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        return env == "production"
 
     @field_validator("SECRET_KEY", mode="after")
     @classmethod
@@ -70,12 +94,15 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
+            cleaned = v.strip()
+            if not cleaned:
+                return ["*"]
             try:
-                parsed = json.loads(v)
+                parsed = json.loads(cleaned)
                 if isinstance(parsed, list):
                     return parsed
             except Exception:
-                return [i.strip() for i in v.split(",") if i.strip()]
+                return [i.strip() for i in cleaned.split(",") if i.strip()]
         return v
 
     model_config = SettingsConfigDict(

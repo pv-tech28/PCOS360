@@ -6,9 +6,11 @@ import colors from '../../theme/colors';
 import Button from '../../components/common/Button';
 import BrandMark from '../../components/common/BrandMark';
 import { useHealth } from '../../context/HealthContext';
+import { isLocalOrDevUrl } from '../../services/api';
 
 export default function WelcomeScreen({ navigation }) {
-  const { enterDemoMode } = useHealth();
+  const { enterDemoMode, apiServerUrl } = useHealth();
+  const showDevServerConfig = isLocalOrDevUrl(apiServerUrl);
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -59,12 +61,14 @@ export default function WelcomeScreen({ navigation }) {
             <Text style={styles.skipText}>Try Sample Demo (Local Preview Only)</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => navigation.navigate('Settings')}
-            style={styles.serverButton}
-          >
-            <Text style={styles.serverText}>Configure Server URL</Text>
-          </Pressable>
+          {showDevServerConfig && (
+            <Pressable
+              onPress={() => navigation.navigate('Settings')}
+              style={styles.serverButton}
+            >
+              <Text style={styles.serverText}>Configure Local Dev Server URL</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </SafeAreaView>
